@@ -1,0 +1,47 @@
+DOCUMENTATION UPDATES SUMMARY
+Date: February 22, 2026
+
+Objective
+Update all README/documentation files so they reflect the latest implementation and file structure.
+
+Result
+Completed. Documentation now aligns with the current repository layout and runtime behavior.
+
+Key Fixes Applied
+1. Paths and commands
+- Replaced outdated root-level script references with current paths:
+  - src/fba/app.py
+  - src/fba/scraper.py
+  - scripts/start_server.sh
+  - scripts/run_tests_manual.py
+
+2. Endpoints
+- Updated endpoint docs to match src/fba/app.py exactly.
+
+3. Runtime data locations
+- Standardized docs to use data/config.json, data/browser_state.json, data/standings.json.
+
+4. Ranking behavior
+- Corrected docs to reflect normalize.py behavior: N=best, 1=worst.
+
+5. Legacy component status
+- Marked src/fba/webhook_server.py as legacy/optional because it references non-present scripts.
+
+6. Test snapshot
+- Recorded current executed result from ./venv/bin/pytest -q:
+  - 40 passed
+  - 4 failed (tests/test_normalize.py rank-direction expectations)
+
+Files Covered
+- README.md
+- docs/QUICKSTART.md
+- docs/ARCHITECTURE.md
+- docs/DOCS.md
+- docs/CHANGELOG.md
+- docs/IMPLEMENTATION_SUMMARY.md
+- docs/FEATURE_VERIFICATION.txt
+- docs/FINAL_SUMMARY.txt
+- docs/UPDATES_SUMMARY.txt
+
+Constraint Compliance
+- No non-documentation files were edited.

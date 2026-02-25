@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Games Played Analysis — Fantasy Basketball</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <div class="header-left">
+        <div class="nav-hamburger" id="nav-hamburger">
+          <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMenu()">
+            <span></span><span></span><span></span>
+          </button>
+          <nav class="hamburger-menu" id="hamburger-menu">
+            <a href="/">Standings Analysis</a>
+            <a href="/analysis">Target Category Analysis</a>
+            <a href="/games-played" class="active">Games Played Analysis</a>
+          </nav>
+        </div>
+        <h1>Roto Fantasy Basketball Solver</h1>
+      </div>
+      <div class="header-meta">
+        {% if scraped_at %}
+          <span class="last-updated">Updated {{ scraped_at }}</span>
+        {% endif %}
+
+        <!-- League ID display + refresh (when league is configured) -->
+        <div id="league-controls" class="league-controls {% if not league_id %}hidden{% endif %}">
+          <span id="league-label" class="league-label">League {{ league_id }}</span>
+          <button id="change-league-btn" class="btn-link" onclick="showLeagueInput()">Change</button>
+          <button id="refresh-btn" class="btn-primary" onclick="refreshData()">Refresh</button>
+        </div>
+
+        <!-- League ID input (when no league configured, or user clicks Change) -->
+        <div id="league-input-wrap" class="league-input-wrap {% if league_id %}hidden{% endif %}">
+          <input id="league-id-input" type="text" placeholder="League ID" value="{{ league_id }}" maxlength="10">
+          <button id="connect-btn" class="btn-primary" onclick="connectLeague()">Connect</button>
+          {% if league_id %}
+            <button class="btn-link" onclick="cancelLeagueChange()">Cancel</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    {% if not rows %}
+      <div class="empty-state">
+        <p>No standings data yet.</p>
+        <p>Go to <a href="/">Standings</a> and refresh to fetch data first.</p>
+      </div>
+    {% else %}
+
+      <!-- Date range controls -->
+      <section>
+        <form class="gp-form" method="get" action="/games-played">
+          <label for="start-input">Season start:</label>
+          <input id="start-input" type="date" name="start" value="{{ start_str }}">
+          <label for="end-input">end:</label>
+          <input id="end-input" type="date" name="end" value="{{ end_str }}">
+          <label for="total-games-input">Total annual games:</label>
+          <input id="total-games-input" type="number" name="total_games"
+                 value="{{ total_games }}" min="1" class="gp-total-input">
+          <button type="submit" class="btn-primary">Update</button>
+        </form>
+      </section>
+
+      {% if date_error %}
+        <div class="alert alert-error">{{ date_error }}</div>
+      {% endif %}
+
+      <!-- GP Pace Table -->
+      <section>
+        <h2>Games Played Pace</h2>
+        {% if date_valid and elapsed_days is not none %}
+          <p class="section-note">
+            <strong>{{ elapsed_days }}</strong> days elapsed &nbsp;·&nbsp;
+            <strong>{{ remaining_days }}</strong> days remaining
+            ({{ start_str }} – {{ end_str }}, inclusive)
+          </p>
+        {% endif %}
+        <div class="table-wrap">
+          <table class="gp-table">
+            <thead>
+              <tr>
+                <th class="col-rank">Rank</th>
+                <th class="col-team">Team</th>
+                <th class="col-gp">GP</th>
+                <th class="col-rank">PG Total</th>
+                <th>GP/Day So Far</th>
+                <th>GP/Day Remaining</th>
+                <th>Net Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}>
+                  <td class="col-rank">{{ row.rank if row.rank is not none else '—' }}</td>
+                  <td class="col-team">{{ row.team_name }}</td>
+                  <td class="col-gp">{{ row.gp if row.gp is not none else '—' }}</td>
+                  <td class="col-rank">{{ row.rank_total if row.rank_total is not none else '—' }}</td>
+                  <td>
+                    {% if row.avg_gp_per_day_so_far is not none %}
+                      {{ "%.2f"|format(row.avg_gp_per_day_so_far) }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if row.avg_gp_per_day_needed is not none %}
+                      {{ "%.2f"|format(row.avg_gp_per_day_needed) }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if row.net_rate_delta is not none %}
+                      <span class="delta {% if row.net_rate_delta > 0 %}delta-behind{% elif row.net_rate_delta < 0 %}delta-ahead{% endif %}">
+                        {% if row.net_rate_delta > 0 %}+{% endif %}{{ "%.2f"|format(row.net_rate_delta) }}
+                      </span>
+                    {% else %}—{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="section-note gp-key">
+          <strong>GP/Day So Far</strong> — games played ÷ elapsed days<br>
+          <strong>GP/Day Remaining</strong> — (total games − GP) ÷ remaining days: how many games per day you still need to play<br>
+          <strong>Net Δ</strong> — GP/Day Remaining − GP/Day So Far: positive = need to speed up, negative = can slow down
+        </p>
+      </section>
+
+    {% endif %}
+
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('hamburger-menu').classList.toggle('open');
+      document.getElementById('hamburger-btn').classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      if (!document.getElementById('nav-hamburger').contains(e.target)) {
+        document.getElementById('hamburger-menu').classList.remove('open');
+        document.getElementById('hamburger-btn').classList.remove('open');
+      }
+    });
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

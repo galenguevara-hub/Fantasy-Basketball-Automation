@@ -1,0 +1,2 @@
+yahoo_fantasy_api>=3.3.0
+yahoo_oauth>=2.0.0

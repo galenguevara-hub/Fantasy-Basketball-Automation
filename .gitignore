@@ -1,0 +1,32 @@
+# OAuth credentials (contains secrets)
+oauth2.json
+google_credentials.json
+google_token.json
+
+# Output files
+standings.csv
+standings.json
+config.json
+out/
+server.log
+
+# Yahoo API test sandbox
+yahoo_api_test/oauth2.json
+yahoo_api_test/venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

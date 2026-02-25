@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Category Targets — Fantasy Basketball</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <div class="header-left">
+        <div class="nav-hamburger" id="nav-hamburger">
+          <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMenu()">
+            <span></span><span></span><span></span>
+          </button>
+          <nav class="hamburger-menu" id="hamburger-menu">
+            <a href="/">Standings Analysis</a>
+            <a href="/analysis" class="active">Target Category Analysis</a>
+            <a href="/games-played">Games Played Analysis</a>
+          </nav>
+        </div>
+        <h1>Roto Fantasy Basketball Solver</h1>
+      </div>
+      <div class="header-meta">
+        {% if scraped_at %}
+          <span class="last-updated">Updated {{ scraped_at }}</span>
+        {% endif %}
+
+        <!-- League ID display + refresh (when league is configured) -->
+        <div id="league-controls" class="league-controls {% if not league_id %}hidden{% endif %}">
+          <span id="league-label" class="league-label">League {{ league_id }}</span>
+          <button id="change-league-btn" class="btn-link" onclick="showLeagueInput()">Change</button>
+          <button id="refresh-btn" class="btn-primary" onclick="refreshData()">Refresh</button>
+        </div>
+
+        <!-- League ID input (when no league configured, or user clicks Change) -->
+        <div id="league-input-wrap" class="league-input-wrap {% if league_id %}hidden{% endif %}">
+          <input id="league-id-input" type="text" placeholder="League ID" value="{{ league_id }}" maxlength="10">
+          <button id="connect-btn" class="btn-primary" onclick="connectLeague()">Connect</button>
+          {% if league_id %}
+            <button class="btn-link" onclick="cancelLeagueChange()">Cancel</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    {% if not team_names %}
+      <div class="empty-state">
+        <p>No standings data yet.</p>
+        <p>Go to <a href="/">Standings</a> and refresh to fetch data first.</p>
+      </div>
+    {% else %}
+
+      <section>
+        <div class="analysis-controls">
+          <label for="team-select">Analyze team:</label>
+          <select id="team-select" onchange="switchTeam(this.value)">
+            {% for name in team_names %}
+              <option value="{{ name }}" {% if name == selected_team %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </section>
+
+      {% if analysis %}
+      <!-- Summary Panel -->
+      <section class="summary-panel">
+        <div class="summary-group summary-target">
+          <h3>Categories to Target</h3>
+          <p class="summary-note">Best ROI — smallest effort for +1 roto point</p>
+          <ul>
+            {% for c in analysis if c.tag == 'TARGET' %}
+              <li>
+                <strong>{{ c.display }}</strong>
+                <span class="summary-detail">
+                  {% if c.z_gap_up is not none %}
+                    {{ "%.2f"|format(c.z_gap_up) }}σ to gain a rank
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="summary-group summary-defend">
+          <h3>Categories to Defend</h3>
+          <p class="summary-note">Smallest buffer — risk of losing -1 roto point</p>
+          <ul>
+            {% for c in analysis if c.tag == 'DEFEND' %}
+              <li>
+                <strong>{{ c.display }}</strong>
+                <span class="summary-detail">
+                  {% if c.z_gap_down is not none %}
+                    {{ "%.2f"|format(c.z_gap_down) }}σ buffer
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+
+      <!-- Full Analysis Table -->
+      <section>
+        <h2>Category Analysis — {{ selected_team }}</h2>
+        <div class="table-wrap">
+          <table class="analysis-table">
+            <thead>
+              <tr>
+                <th class="col-cat">Category</th>
+                <th>Value</th>
+                <th>Rank</th>
+                <th class="col-ref">Better Team</th>
+                <th>Value</th>
+                <th>Gap+</th>
+                <th>z+</th>
+                <th class="col-ref">Worse Team</th>
+                <th>Value</th>
+                <th>Gap−</th>
+                <th>z−</th>
+                <th>Score</th>
+                <th>Tag</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in analysis %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}
+                    {% if c.tag == 'TARGET' %}data-tag="target"{% elif c.tag == 'DEFEND' %}data-tag="defend"{% endif %}>
+                  <td class="col-cat">{{ c.display }}</td>
+                  <td>
+                    {% if c.value is not none %}{{ "%.3f"|format(c.value) }}{% else %}—{% endif %}
+                  </td>
+                  <td>{% if c.rank is not none %}{{ c.rank }}{% else %}—{% endif %}</td>
+                  <td class="col-ref">
+                    {% if c.next_better_team %}
+                      {{ c.next_better_team }}{% if team_pg_rank.get(c.next_better_team) %} <span class="ref-rank">({{ team_pg_rank[c.next_better_team] }})</span>{% endif %}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if c.next_better_value is not none %}{{ "%.3f"|format(c.next_better_value) }}{% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if c.gap_up is not none %}{{ "%.3f"|format(c.gap_up) }}{% else %}—{% endif %}
+                  </td>
+                  <td>{% if c.z_gap_up is not none %}{{ "%.2f"|format(c.z_gap_up) }}{% else %}—{% endif %}</td>
+                  <td class="col-ref">
+                    {% if c.next_worse_team %}
+                      {{ c.next_worse_team }}{% if team_pg_rank.get(c.next_worse_team) %} <span class="ref-rank">({{ team_pg_rank[c.next_worse_team] }})</span>{% endif %}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if c.next_worse_value is not none %}{{ "%.3f"|format(c.next_worse_value) }}{% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if c.gap_down is not none %}{{ "%.3f"|format(c.gap_down) }}{% else %}—{% endif %}
+                  </td>
+                  <td>{% if c.z_gap_down is not none %}{{ "%.2f"|format(c.z_gap_down) }}{% else %}—{% endif %}</td>
+                  <td>{% if c.target_score is not none %}{{ "%.2f"|format(c.target_score) }}{% else %}—{% endif %}</td>
+                  <td class="col-tag">
+                    {% if c.tag == 'TARGET' %}
+                      <span class="tag tag-target">TARGET</span>
+                    {% elif c.tag == 'DEFEND' %}
+                      <span class="tag tag-defend">DEFEND</span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+
+      {% include '_analysis_key.html' %}
+
+      {% if analysis and team_cluster %}
+      <!-- Cluster Leverage Section (Layer 2) -->
+      <section>
+        <h2>Cluster Leverage (Multi-Point Potential)</h2>
+        <p class="section-note">This measures how many roto points you can gain (or lose) if teams are tightly clustered. It looks beyond the next opponent.</p>
+        <div class="table-wrap">
+          <table class="analysis-table cluster-table">
+            <thead>
+              <tr>
+                <th class="col-cat">Category</th>
+                <th>Rank</th>
+                <th>σ</th>
+                <th>z+1</th>
+                <th>z+2</th>
+                <th>z+3</th>
+                <th>Pts Up ≤ 0.75σ</th>
+                <th>Up Score</th>
+                <th>z−1</th>
+                <th>z−2</th>
+                <th>z−3</th>
+                <th>Pts Down ≤ 0.75σ</th>
+                <th>Dn Risk</th>
+                <th>Tag</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in analysis %}
+                {% set cm = team_cluster.get(c.category, {}) %}
+                {% set c_tag = cm.get('tag') %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}
+                    {% if c_tag == 'TARGET' %}data-tag="target"{% elif c_tag == 'DEFEND' %}data-tag="defend"{% endif %}>
+                  <td class="col-cat">{{ c.display }}</td>
+                  <td>{{ c.rank if c.rank is not none else "—" }}</td>
+                  <td>
+                    {% if cm.get('sigma') is not none %}
+                      {{ "%.4f"|format(cm.get('sigma')) if c.category in ['FG%', 'FT%'] else "%.3f"|format(cm.get('sigma')) }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>{{ "%.2f"|format(cm.get('z_to_gain_1')) if cm.get('z_to_gain_1') is not none else "—" }}</td>
+                  <td>{{ "%.2f"|format(cm.get('z_to_gain_2')) if cm.get('z_to_gain_2') is not none else "—" }}</td>
+                  <td>{{ "%.2f"|format(cm.get('z_to_gain_3')) if cm.get('z_to_gain_3') is not none else "—" }}</td>
+                  <td>{{ cm.get('points_up_within_T') if cm.get('points_up_within_T') is not none else "—" }}</td>
+                  <td>{{ "%.2f"|format(cm.get('cluster_up_score')) if cm.get('cluster_up_score') is not none else "—" }}</td>
+                  <td>{{ "%.2f"|format(cm.get('z_to_lose_1')) if cm.get('z_to_lose_1') is not none else "—" }}</td>
+                  <td>{{ "%.2f"|format(cm.get('z_to_lose_2')) if cm.get('z_to_lose_2') is not none else "—" }}</td>
+                  <td>{{ "%.2f"|format(cm.get('z_to_lose_3')) if cm.get('z_to_lose_3') is not none else "—" }}</td>
+                  <td>{{ cm.get('points_down_within_T') if cm.get('points_down_within_T') is not none else "—" }}</td>
+                  <td>{{ "%.2f"|format(cm.get('cluster_down_risk')) if cm.get('cluster_down_risk') is not none else "—" }}</td>
+                  <td class="col-tag">
+                    {% if c_tag == 'TARGET' %}
+                      <span class="tag tag-target">TARGET</span>
+                    {% elif c_tag == 'DEFEND' %}
+                      <span class="tag tag-defend">DEFEND</span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <aside class="cluster-legend">
+          <h4 class="analysis-key-title">How to read this</h4>
+          <ul class="analysis-key-list">
+            <li><strong>σ (Sigma):</strong> Population std dev for this category — the natural unit of spread across all teams.</li>
+            <li><strong>z+1 / z+2 / z+3:</strong> Standardized improvement (in σ units) needed to jump 1, 2, or 3 roto points upward. Smaller = more reachable. "—" means you're already at or beyond that tier.</li>
+            <li><strong>z−1 / z−2 / z−3:</strong> Standardized decline (in σ units) needed to drop 1, 2, or 3 roto points downward. Smaller = more fragile. "—" means you're already at the bottom tier.</li>
+            <li><strong>Pts Up:</strong> How many roto-point jumps sit within a 0.75σ effort window above you — teams bunched close enough that one push gains multiple spots.</li>
+            <li><strong>Up Score:</strong> Pts Up ÷ 0.75 — a density-adjusted ROI. Higher = more multi-point leverage per unit of effort.</li>
+            <li><strong>Pts Dn:</strong> How many roto-point drops sit within 0.75σ below you — teams so close that a small slip costs multiple positions.</li>
+            <li><strong>Dn Risk:</strong> Pts Dn ÷ 0.75 — a density-adjusted fragility score. Higher = more exposure to a multi-point collapse.</li>
+          </ul>
+          <div class="analysis-key-rules">
+            <span><strong>High Cluster Up Score</strong> = can gain multiple points with modest improvement — prioritize this category.</span>
+            <span><strong>High Cluster Down Risk</strong> = could lose multiple points if you slip — defend this category.</span>
+          </div>
+        </aside>
+      </section>
+      {% endif %}
+
+      <!-- League-Wide Summary Table -->
+      {% set cat_class_map = {
+        'FG%':   'cat-fg',
+        'FT%':   'cat-ft',
+        '3PM/G': 'cat-3pm',
+        'PTS/G': 'cat-pts',
+        'REB/G': 'cat-reb',
+        'AST/G': 'cat-ast',
+        'STL/G': 'cat-stl',
+        'BLK/G': 'cat-blk',
+      } %}
+      {% if league_summary %}
+      <section>
+        <h2>League Overview</h2>
+        <p class="section-note">All teams ranked by per-game total (highest = best). Layer 1 and Cluster target/defend categories are sorted from highest to lowest priority score.</p>
+        <div class="table-wrap">
+          <table class="analysis-table">
+            <thead>
+              <tr>
+                <th class="col-rank">PG Rank</th>
+                <th class="col-team">Team</th>
+                <th class="col-rank">PG Total</th>
+                <th class="col-rank">Roto Total</th>
+                <th>L1 Targets</th>
+                <th>L1 Defends</th>
+                <th>Cluster Targets</th>
+                <th>Cluster Defends</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in league_summary %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}>
+                  <td class="col-rank">{{ row.pg_rank }}</td>
+                  <td class="col-team">{{ row.team_name }}</td>
+                  <td class="col-rank">{{ row.rank_total }}</td>
+                  <td class="col-rank">{% if row.total_points is not none %}{{ row.total_points }}{% else %}—{% endif %}</td>
+                  <td>
+                    {% for c in row.targets %}
+                      <span class="tag {{ cat_class_map.get(c.display, '') }}">{{ c.display | replace('/G', '') }}</span>
+                    {% else %}
+                      —
+                    {% endfor %}
+                  </td>
+                  <td>
+                    {% for c in row.defends %}
+                      <span class="tag {{ cat_class_map.get(c.display, '') }}">{{ c.display | replace('/G', '') }}</span>
+                    {% else %}
+                      —
+                    {% endfor %}
+                  </td>
+                  <td>
+                    {% for cat_name in row.cluster_targets %}
+                      <span class="tag {{ cat_class_map.get(cat_name, '') }}">{{ cat_name | replace('/G', '') }}</span>
+                    {% else %}
+                      —
+                    {% endfor %}
+                  </td>
+                  <td>
+                    {% for cat_name in row.cluster_defends %}
+                      <span class="tag {{ cat_class_map.get(cat_name, '') }}">{{ cat_name | replace('/G', '') }}</span>
+                    {% else %}
+                      —
+                    {% endfor %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+
+    {% endif %}
+
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('hamburger-menu').classList.toggle('open');
+      document.getElementById('hamburger-btn').classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      if (!document.getElementById('nav-hamburger').contains(e.target)) {
+        document.getElementById('hamburger-menu').classList.remove('open');
+        document.getElementById('hamburger-btn').classList.remove('open');
+      }
+    });
+    function switchTeam(teamName) {
+      const url = new URL(window.location);
+      url.searchParams.set('team', teamName);
+      window.location = url.toString();
+    }
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

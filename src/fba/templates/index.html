@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roto Fantasy Basketball Solver</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <div class="header-left">
+        <div class="nav-hamburger" id="nav-hamburger">
+          <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMenu()">
+            <span></span><span></span><span></span>
+          </button>
+          <nav class="hamburger-menu" id="hamburger-menu">
+            <a href="/" class="active">Standings Analysis</a>
+            <a href="/analysis">Target Category Analysis</a>
+            <a href="/games-played">Games Played Analysis</a>
+          </nav>
+        </div>
+        <h1>Roto Fantasy Basketball Solver</h1>
+      </div>
+      <div class="header-meta">
+        {% if scraped_at %}
+          <span class="last-updated">Updated {{ scraped_at }}</span>
+        {% endif %}
+
+        <!-- League ID display + refresh (when league is configured) -->
+        <div id="league-controls" class="league-controls {% if not league_id %}hidden{% endif %}">
+          <span id="league-label" class="league-label">League {{ league_id }}</span>
+          <button id="change-league-btn" class="btn-link" onclick="showLeagueInput()">Change</button>
+          <button id="refresh-btn" class="btn-primary" onclick="refreshData()">Refresh</button>
+        </div>
+
+        <!-- League ID input (when no league configured, or user clicks Change) -->
+        <div id="league-input-wrap" class="league-input-wrap {% if league_id %}hidden{% endif %}">
+          <input id="league-id-input" type="text" placeholder="League ID" value="{{ league_id }}" maxlength="10">
+          <button id="connect-btn" class="btn-primary" onclick="connectLeague()">Connect</button>
+          {% if league_id %}
+            <button class="btn-link" onclick="cancelLeagueChange()">Cancel</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    {% if not teams %}
+      <div class="empty-state">
+        <p>No standings data yet.</p>
+        {% if league_id %}
+          <p>Click <strong>Refresh</strong> to fetch standings from Yahoo.</p>
+          <p class="hint">A browser window will open for you to sign in if needed.</p>
+        {% else %}
+          <p>Enter your Yahoo Fantasy league ID above to get started.</p>
+          <p class="hint">You can find it in your league URL: basketball.fantasysports.yahoo.com/nba/<strong>YOUR_ID</strong>/standings</p>
+        {% endif %}
+      </div>
+    {% else %}
+
+      <!-- Overall Points Table -->
+      <section>
+        <h2>1. Overall Points</h2>
+        <p class="section-note">The official Yahoo roto standings. Each category cell shows roto points earned (1–10, where 10 = best in league). Total Points is the sum across all 8 categories. Pts Change shows the net movement since the last scoring period.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-rank">Rank</th>
+                <th class="col-team">Team Name</th>
+                <th>GP</th>
+                <th>FG%</th>
+                <th>FT%</th>
+                <th>3PM</th>
+                <th>PTS</th>
+                <th>REB</th>
+                <th>AST</th>
+                <th>STL</th>
+                <th>BLK</th>
+                <th class="col-total">Total Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for team in teams %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}>
+                  <td class="col-rank">{{ team.rank }}</td>
+                  <td class="col-team">{{ team.team_name }}</td>
+                  <td>{{ team.stats.get('GP', '—') }}</td>
+                  <td>{{ team.roto_points.get('FG%', '—') }}</td>
+                  <td>{{ team.roto_points.get('FT%', '—') }}</td>
+                  <td>{{ team.roto_points.get('3PTM', '—') }}</td>
+                  <td>{{ team.roto_points.get('PTS', '—') }}</td>
+                  <td>{{ team.roto_points.get('REB', '—') }}</td>
+                  <td>{{ team.roto_points.get('AST', '—') }}</td>
+                  <td>{{ team.roto_points.get('ST', '—') }}</td>
+                  <td>{{ team.roto_points.get('BLK', '—') }}</td>
+                  <td class="col-total">{{ team.total_points }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Overall Stats Table -->
+      <section>
+        <h2>2. Overall Stats</h2>
+        <p class="section-note">Raw season-to-date totals from Yahoo. Counting stats (3PM, PTS, REB, AST, STL, BLK) accumulate with every game played — teams with more games will have higher totals. FG% and FT% are running season averages.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-rank">Rank</th>
+                <th class="col-team">Team Name</th>
+                <th>GP</th>
+                <th>FG%</th>
+                <th>FT%</th>
+                <th>3PM</th>
+                <th>PTS</th>
+                <th>REB</th>
+                <th>AST</th>
+                <th>STL</th>
+                <th>BLK</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for team in teams %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}>
+                  <td class="col-rank">{{ team.rank }}</td>
+                  <td class="col-team">{{ team.team_name }}</td>
+                  <td>{{ team.stats.get('GP', '—') }}</td>
+                  <td>{{ team.stats.get('FG%', '—') }}</td>
+                  <td>{{ team.stats.get('FT%', '—') }}</td>
+                  <td>{{ team.stats.get('3PTM', '—') }}</td>
+                  <td>{{ team.stats.get('PTS', '—') }}</td>
+                  <td>{{ team.stats.get('REB', '—') }}</td>
+                  <td>{{ team.stats.get('AST', '—') }}</td>
+                  <td>{{ team.stats.get('ST', '—') }}</td>
+                  <td>{{ team.stats.get('BLK', '—') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Normalized (Per-Game) View Section -->
+      {% if per_game_rows %}
+      <section class="analysis-section">
+        <h2>Per-Game Summary</h2>
+        <p class="section-note">Counting stats are normalized by team games played (GP). FG% and FT% are shown as-is.</p>
+
+        <!-- Per-Game Averages Table -->
+        <h3>3. Per-Game Averages</h3>
+        <p class="section-note">Counting stats divided by games played (GP) to normalize across teams regardless of schedule. FG% and FT% are shown as-is. Use this view to compare true production rates rather than raw totals.</p>
+        <div class="table-wrap">
+          <table class="per-game-table">
+            <thead>
+              <tr>
+                <th class="col-rank">Rank</th>
+                <th class="col-team">Team</th>
+                <th class="col-gp">GP</th>
+                <th class="col-pct">FG%</th>
+                <th class="col-pct">FT%</th>
+                <th class="col-stat">3PM/G</th>
+                <th class="col-stat">PTS/G</th>
+                <th class="col-stat">REB/G</th>
+                <th class="col-stat">AST/G</th>
+                <th class="col-stat">STL/G</th>
+                <th class="col-stat">BLK/G</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in per_game_rows %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}>
+                  <td class="col-rank">{% if row.rank is not none %}{{ row.rank }}{% else %}—{% endif %}</td>
+                  <td class="col-team">{{ row.team_name }}</td>
+                  <td class="col-gp">{% if row.GP is not none %}{{ row.GP }}{% else %}—{% endif %}</td>
+                  <td class="col-pct">{% if row['FG%'] is not none %}{{ "%.3f"|format(row['FG%']) }}{% else %}—{% endif %}</td>
+                  <td class="col-pct">{% if row['FT%'] is not none %}{{ "%.3f"|format(row['FT%']) }}{% else %}—{% endif %}</td>
+                  <td class="col-stat">{% if row['3PM_pg'] is not none %}{{ "%.3f"|format(row['3PM_pg']) }}{% else %}—{% endif %}</td>
+                  <td class="col-stat">{% if row.PTS_pg is not none %}{{ "%.3f"|format(row.PTS_pg) }}{% else %}—{% endif %}</td>
+                  <td class="col-stat">{% if row.REB_pg is not none %}{{ "%.3f"|format(row.REB_pg) }}{% else %}—{% endif %}</td>
+                  <td class="col-stat">{% if row.AST_pg is not none %}{{ "%.3f"|format(row.AST_pg) }}{% else %}—{% endif %}</td>
+                  <td class="col-stat">{% if row.ST_pg is not none %}{{ "%.3f"|format(row.ST_pg) }}{% else %}—{% endif %}</td>
+                  <td class="col-stat">{% if row.BLK_pg is not none %}{{ "%.3f"|format(row.BLK_pg) }}{% else %}—{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Per-Game Category Rankings Table -->
+        <h3>4. Per-Game Rankings</h3>
+        <p class="section-note">Each category ranked 1–10 based on per-game values (10 = best in league). Total is the sum of all category ranks — higher is better. Delta Total is Total minus your actual roto points from Table 1; a positive value means your per-game production outpaces your current standing, suggesting upside.</p>
+        <div class="table-wrap">
+          <table class="ranking-table">
+            <thead>
+              <tr>
+                <th class="col-rank">Rank</th>
+                <th class="col-team">Team</th>
+                <th class="col-gp">GP</th>
+                <th class="col-rank">FG%</th>
+                <th class="col-rank">FT%</th>
+                <th class="col-rank">3PM</th>
+                <th class="col-rank">PTS</th>
+                <th class="col-rank">REB</th>
+                <th class="col-rank">AST</th>
+                <th class="col-rank">STL</th>
+                <th class="col-rank">BLK</th>
+                <th class="col-rank col-total">Total</th>
+                <th class="col-rank col-total">Delta Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ranking_rows %}
+                <tr {% if loop.index is odd %}class="row-alt"{% endif %}>
+                  <td class="col-rank">{% if row.rank is not none %}{{ row.rank }}{% else %}—{% endif %}</td>
+                  <td class="col-team">{{ row.team_name }}</td>
+                  <td class="col-gp">{% if row.GP is not none %}{{ row.GP }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row['FG%_Rank'] is not none %}{{ row['FG%_Rank'] }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row['FT%_Rank'] is not none %}{{ row['FT%_Rank'] }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row['3PM_Rank'] is not none %}{{ row['3PM_Rank'] }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row.PTS_Rank is not none %}{{ row.PTS_Rank }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row.REB_Rank is not none %}{{ row.REB_Rank }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row.AST_Rank is not none %}{{ row.AST_Rank }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row.ST_Rank is not none %}{{ row.ST_Rank }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row.BLK_Rank is not none %}{{ row.BLK_Rank }}{% else %}—{% endif %}</td>
+                  <td class="col-rank col-total">{% if row.rank_total is not none %}{{ row.rank_total }}{% else %}—{% endif %}</td>
+                  <td class="col-rank col-total">
+                    {% if row.points_delta is not none %}
+                      {{ "%+d"|format(row.points_delta) }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+
+    {% endif %}
+
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('hamburger-menu').classList.toggle('open');
+      document.getElementById('hamburger-btn').classList.toggle('open');
+    }
+    document.addEventListener('click', function(e) {
+      if (!document.getElementById('nav-hamburger').contains(e.target)) {
+        document.getElementById('hamburger-menu').classList.remove('open');
+        document.getElementById('hamburger-btn').classList.remove('open');
+      }
+    });
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

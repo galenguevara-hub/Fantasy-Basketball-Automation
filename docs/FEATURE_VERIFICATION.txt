@@ -1,0 +1,42 @@
+FEATURE VERIFICATION (Current)
+Date: February 22, 2026
+
+Scope
+- Verified documentation against current implementation and file structure.
+- No code files were modified.
+
+Verified Components
+- src/fba/app.py
+- src/fba/scraper.py
+- src/fba/normalize.py
+- src/fba/analysis/category_targets.py
+- scripts/start_server.sh
+- scripts/run_tests_manual.py
+- tests/test_normalize.py
+- tests/test_category_targets.py
+
+Verified Runtime/Data Paths
+- data/config.json
+- data/browser_state.json
+- data/standings.json
+
+Current Endpoint Verification
+- GET /
+- GET /analysis
+- POST /refresh
+- GET /api/standings
+- GET /api/config
+- POST /api/config
+
+Command Verification
+- ./scripts/start_server.sh (documented as primary startup)
+- ./venv/bin/pytest -q (executed)
+
+Current Test Result
+- 40 passed, 4 failed
+- Failures are in tests/test_normalize.py rank-direction assertions.
+- Current normalize.py ranking behavior is N=best, 1=worst.
+
+Notes
+- src/fba/webhook_server.py exists but references old scripts not present in this repository.
+- It is documented as legacy/optional and not part of the main app flow.

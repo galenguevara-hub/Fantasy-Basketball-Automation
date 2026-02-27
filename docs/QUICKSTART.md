@@ -8,6 +8,8 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
+npm --prefix frontend install
+npm --prefix frontend run build
 ```
 
 ## 2) Start the App
@@ -17,6 +19,53 @@ playwright install chromium
 ```
 
 Open `http://localhost:8080`.
+
+To run the original mainline templates:
+
+```bash
+FBA_UI_MODE=legacy ./scripts/start_server.sh
+```
+
+## 2b) React Frontend Dev Mode (Optional)
+
+```bash
+./scripts/start_dev.sh
+```
+
+This starts:
+- React app: `http://localhost:5173`
+- Flask API: `http://localhost:8080`
+
+## 2c) Serve React Build From Flask
+
+```bash
+cd frontend
+npm run build
+cd ..
+./scripts/start_server.sh
+```
+
+By default (`FBA_UI_MODE=react`), Flask serves React at `/`, `/analysis`, and `/games-played`.
+
+## 2d) Select UI Mode (Optional)
+
+```bash
+# Force React routes (errors with 503 if build is missing)
+FBA_UI_MODE=react ./scripts/start_server.sh
+
+# Force legacy Jinja templates
+FBA_UI_MODE=legacy ./scripts/start_server.sh
+```
+
+`FBA_UI_MODE=auto` is supported as a compatibility alias and behaves like `react`.
+
+## React UI Defaults
+
+- `/` Per-Game Category Rankings defaults to `Total` descending.
+- `/analysis` Category Analysis defaults to `Score` descending.
+- `/analysis` Cluster Leverage defaults to `Up Score` descending.
+- `/analysis` team selection is reflected in `?team=...`.
+- `/games-played` filter state is reflected in `?start=...&end=...&total_games=...`.
 
 ## 3) Connect a League
 
@@ -42,6 +91,9 @@ PYTHONPATH=src python scripts/run_tests_manual.py
 
 # Run pytest
 ./venv/bin/pytest -q
+
+# Run calculation parity regression checks only
+./venv/bin/pytest -q tests/test_calculation_regression_parity.py
 ```
 
 ## Files You Will See Updated

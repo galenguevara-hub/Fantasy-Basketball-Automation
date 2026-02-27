@@ -21,6 +21,31 @@ if [ ! -f "data/browser_state.json" ]; then
     echo ""
 fi
 
+RAW_UI_MODE="${FBA_UI_MODE:-react}"
+if [ "${RAW_UI_MODE}" = "legacy" ]; then
+    UI_MODE="legacy"
+    echo "UI mode: legacy"
+elif [ "${RAW_UI_MODE}" = "auto" ]; then
+    UI_MODE="react"
+    echo "UI mode: auto (compatibility alias; treated as react)"
+elif [ "${RAW_UI_MODE}" = "react" ]; then
+    UI_MODE="react"
+    echo "UI mode: react (default)"
+else
+    UI_MODE="react"
+    echo "UI mode: ${RAW_UI_MODE} (invalid; treated as react)"
+fi
+
+if [ "${UI_MODE}" = "react" ] && [ ! -f "frontend/dist/index.html" ]; then
+    echo "Error: React UI mode requires frontend/dist/index.html, but it is missing."
+    echo "Run: npm --prefix frontend run build"
+    echo "Or force legacy templates: FBA_UI_MODE=legacy ./scripts/start_server.sh"
+    exit 1
+elif [ "${UI_MODE}" = "legacy" ]; then
+    echo "Legacy templates forced via FBA_UI_MODE=legacy."
+fi
+echo ""
+
 # Start the app
 echo "Starting Fantasy Basketball app at http://localhost:8080"
 echo "Press Ctrl+C to stop"

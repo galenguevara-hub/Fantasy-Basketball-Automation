@@ -6,15 +6,7 @@
 - `docs/QUICKSTART.md`: minimal setup and first run
 - `docs/ARCHITECTURE.md`: component and data-flow details
 - `docs/CHANGELOG.md`: documentation and behavior updates
-
-## Supplemental Project Notes
-
-- `docs/IMPLEMENTATION_SUMMARY.md`
-- `docs/FEATURE_VERIFICATION.txt`
-- `docs/FINAL_SUMMARY.txt`
-- `docs/UPDATES_SUMMARY.txt`
-
-These supplemental files now describe the current implementation and highlight where older assumptions no longer match current behavior.
+- `docs/IMPLEMENTATION_SUMMARY.md`: current implementation and test snapshot
 
 ## Practical References
 
@@ -22,5 +14,13 @@ These supplemental files now describe the current implementation and highlight w
 - Scraper: `src/fba/scraper.py`
 - Normalization: `src/fba/normalize.py`
 - Category analysis: `src/fba/analysis/category_targets.py`
+- Cluster analysis: `src/fba/analysis/cluster_leverage.py`
+- Games played analysis: `src/fba/analysis/games_played.py`
 - Startup script: `scripts/start_server.sh`
-- Tests: `tests/test_normalize.py`, `tests/test_category_targets.py`
+- Tests:
+  - `tests/test_normalize.py`
+  - `tests/test_category_targets.py`
+  - `tests/test_cluster_leverage.py`
+  - `tests/test_games_played.py`
+  - `tests/test_app_api.py`
+  - `tests/test_calculation_regression_parity.py`

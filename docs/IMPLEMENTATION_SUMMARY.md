@@ -1,6 +1,6 @@
 # Implementation Summary
 
-Status: current as of February 22, 2026.
+Status: current as of February 27, 2026.
 
 ## What is implemented
 
@@ -8,37 +8,44 @@ Status: current as of February 22, 2026.
 - Yahoo standings scraper in `src/fba/scraper.py`.
 - Per-game normalization in `src/fba/normalize.py`.
 - Category target analysis in `src/fba/analysis/category_targets.py`.
-- Frontend templates and static assets under `src/fba/templates/` and `src/fba/static/`.
-
-## Current file structure highlights
-
-- Source code: `src/fba/`
-- Tests: `tests/`
-- Scripts: `scripts/`
-- Runtime data: `data/`
-- Config/examples: `config/`, `oauth2.json.example`, `google_credentials.json.example`
+- Cluster leverage analysis in `src/fba/analysis/cluster_leverage.py`.
+- Games-played pace analysis in `src/fba/analysis/games_played.py`.
+- Legacy template UI in `src/fba/templates/` + `src/fba/static/`.
+- React UI in `frontend/` with API-backed pages for standings, category analysis, and games played.
 
 ## Active endpoints (`src/fba/app.py`)
 
 - `GET /`
 - `GET /analysis`
+- `GET /games-played`
 - `POST /refresh`
 - `GET /api/standings`
 - `GET /api/config`
 - `POST /api/config`
+- `GET /api/overview`
+- `GET /api/analysis`
+- `GET /api/games-played`
+- `GET /assets/<path:filename>`
 
-## Important behavior details
+## Runtime/UI behavior
 
+- UI mode switch via `FBA_UI_MODE`:
+  - `react` (default)
+  - `legacy`
+  - `auto` (alias of `react`)
 - Rankings from `normalize.py` use `N=best`, `1=worst`.
+- React defaults:
+  - Per-Game Category Rankings sorted by `Total` descending.
+  - Category Analysis sorted by `Score` descending.
+  - Cluster Leverage sorted by `Up Score` descending.
+- React query-state:
+  - `/analysis?team=<name>`
+  - `/games-played?start=<date>&end=<date>&total_games=<n>`
 - `refresh` triggers `src/fba/scraper.py` via subprocess.
-- If saved session is missing, refresh runs scraper login mode (`--login --no-prompt`).
-- Standings and app config are JSON files under `data/`.
+- If saved session is missing, refresh launches Yahoo login flow.
 
-## Test snapshot
+## Regression and test status
 
-Running `./venv/bin/pytest -q` currently yields:
-
-- 40 passing tests
-- 4 failing tests in `tests/test_normalize.py`
-
-The 4 failures are due to expected rank direction in those tests not matching current `normalize.py` behavior.
+- `./venv/bin/pytest -q` returns `135 passed`.
+- Coverage includes parity verification between legacy routes and API/React payloads:
+  - `tests/test_calculation_regression_parity.py`

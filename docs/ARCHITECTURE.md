@@ -7,6 +7,8 @@ Browser (localhost:8080)
   -> Flask app (src/fba/app.py)
      -> reads/writes data/config.json
      -> reads data/standings.json
+     -> serves JSON payloads for React frontend (`/api/overview`, `/api/analysis`, `/api/games-played`)
+     -> serves React build assets from `frontend/dist` (mode-controlled via `FBA_UI_MODE`)
      -> POST /refresh runs scraper subprocess
           -> src/fba/scraper.py
              -> Yahoo standings page (Playwright)
@@ -21,12 +23,20 @@ Browser (localhost:8080)
 - Serves HTML pages:
   - `GET /`
   - `GET /analysis`
+  - `GET /games-played`
 - Serves API endpoints:
   - `GET /api/config`
   - `POST /api/config`
+  - `GET /api/overview`
+  - `GET /api/analysis`
+  - `GET /api/games-played`
   - `GET /api/standings`
   - `POST /refresh`
-- Calls `normalize_standings()` and `compute_gaps_and_scores()`.
+- Calls:
+  - `normalize_standings()`
+  - `compute_gaps_and_scores()`
+  - `compute_cluster_metrics()`
+  - `compute_games_played_metrics()`
 
 ### `src/fba/scraper.py`
 
@@ -54,11 +64,47 @@ Browser (localhost:8080)
   - top 3 by score -> `TARGET`
   - lowest 2 buffers (excluding targets) -> `DEFEND`
 
+### `src/fba/analysis/cluster_leverage.py`
+
+- Computes per-category cluster density and multi-point movement potential.
+- Exposes:
+  - `z_to_gain_1/2/3`
+  - `z_to_lose_1/2/3`
+  - `points_up_within_T`
+  - `cluster_up_score`
+  - `points_down_within_T`
+  - `cluster_down_risk`
+- Applies cluster tags:
+  - top 3 by `cluster_up_score` -> `TARGET`
+  - top 2 by `cluster_down_risk` (excluding targets) -> `DEFEND`
+
+### `src/fba/analysis/games_played.py`
+
+- Computes games-played pace metrics:
+  - `avg_gp_per_day_so_far`
+  - `avg_gp_per_day_needed`
+  - `net_rate_delta`
+- Uses configurable `start`, `end`, and `total_games`.
+- Returns rows plus `date_valid` flag for UI validation messaging.
+
 ### Frontend
 
-- Templates: `src/fba/templates/index.html`, `src/fba/templates/analysis.html`
+- Templates: `src/fba/templates/index.html`, `src/fba/templates/analysis.html`, `src/fba/templates/games_played.html`
 - Static: `src/fba/static/app.js`, `src/fba/static/style.css`
 - JS handles league config, refresh actions, and table sorting.
+- React app: `frontend/` (Vite + React + TypeScript) consuming Flask JSON endpoints.
+- UI mode switch (`FBA_UI_MODE`):
+  - `react` (default): force React (returns 503 if build missing).
+  - `legacy`: explicit compatibility mode for Jinja templates.
+  - `auto`: compatibility alias for `react`.
+- In React mode, Flask serves built `index.html` for `/`, `/analysis`, `/games-played` and bundle files under `/assets/*`.
+- React table default sorting:
+  - `/`: Per-Game Category Rankings by `rank_total` descending.
+  - `/analysis`: Category Analysis by `target_score` descending.
+  - `/analysis`: Cluster Leverage by `cluster_up_score` descending.
+- React URL query-state:
+  - `?team=<name>` for selected team on `/analysis`.
+  - `?start=...&end=...&total_games=...` for `/games-played`.
 
 ## Data Files
 

@@ -13,17 +13,31 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from flask import Flask, abort, jsonify, render_template, request, send_from_directory
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, session
+from flask_login import current_user, login_required
 
 from fba.analysis.category_targets import compute_gaps_and_scores
 from fba.analysis.cluster_leverage import compute_cluster_metrics
 from fba.analysis.games_played import compute_games_played_metrics
+from fba.auth import (
+    build_auth_url,
+    clear_user_session,
+    exchange_code_for_tokens,
+    fetch_yahoo_user_info,
+    get_valid_tokens,
+    login_manager,
+    store_user_session,
+)
+from fba.config import Config
 from fba.normalize import normalize_standings
 from fba.yahoo_api import (
     AuthError,
     YahooAPIError,
-    fetch_and_save,
-    is_authenticated,
+    fetch_standings,
+    get_oauth_session_from_tokens,
     OAUTH_FILE,
 )
 
@@ -35,6 +49,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.secret_key = Config.SECRET_KEY
+
+# Initialize Flask-Login (return 401 JSON for unauthorized API requests)
+login_manager.init_app(app)
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Return 401 JSON instead of redirect for API requests."""
+    return jsonify({"error": "Authentication required", "authenticated": False}), 401
 
 _DATA_DIR = Path(__file__).parent.parent.parent / "data"
 _PROJECT_DIR = Path(__file__).parent.parent.parent
@@ -44,6 +68,11 @@ STANDINGS_FILE = _DATA_DIR / "standings.json"
 CONFIG_FILE = _DATA_DIR / "config.json"
 UI_MODE_ENV = "FBA_UI_MODE"
 VALID_UI_MODES = {"auto", "react", "legacy"}
+
+# ---------------------------------------------------------------------------
+# In-memory standings cache (keyed by league_id, reset on server restart)
+# ---------------------------------------------------------------------------
+_standings_cache: dict[str, dict] = {}
 
 
 def load_config() -> dict:
@@ -73,6 +102,32 @@ def load_standings() -> "dict | None":
     except (json.JSONDecodeError, OSError) as e:
         logger.error(f"Failed to read standings.json: {e}")
         return None
+
+
+def _get_standings(league_id: str) -> "dict | None":
+    """Return standings for a league, checking the in-memory cache first.
+
+    Falls back to disk (standings.json) only in legacy UI mode.
+    """
+    if league_id and league_id in _standings_cache:
+        return _standings_cache[league_id]
+    if _is_legacy_ui_mode():
+        return load_standings()
+    return None
+
+
+def _get_league_id() -> str:
+    """Return the league ID for the current user from their session.
+
+    Falls back to the shared config file only in legacy UI mode.
+    """
+    league_id = session.get("league_id", "")
+    if league_id:
+        return league_id
+    if _is_legacy_ui_mode():
+        config = load_config()
+        return config.get("league_id", "")
+    return ""
 
 
 def _has_frontend_build() -> bool:
@@ -379,47 +434,137 @@ def games_played():
     return render_template("games_played.html", **payload)
 
 
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
+@app.route("/auth/yahoo")
+def auth_yahoo():
+    """Redirect the user to Yahoo for OAuth authorization."""
+    if not Config.YAHOO_CLIENT_ID:
+        return jsonify({"error": "YAHOO_CLIENT_ID not configured"}), 500
+    url = build_auth_url()
+    logger.info("Redirecting user to Yahoo OAuth: %s", url)
+    return redirect(url)
+
+
+@app.route("/debug/auth-url")
+def debug_auth_url():
+    """Show the exact OAuth authorization URL for debugging (dev only)."""
+    url = build_auth_url()
+    return jsonify({
+        "auth_url": url,
+        "client_id": Config.YAHOO_CLIENT_ID,
+        "redirect_uri": Config.YAHOO_REDIRECT_URI,
+        "redirect_uri_env": os.environ.get("YAHOO_REDIRECT_URI", "(not set)"),
+    })
+
+
+@app.route("/auth/yahoo/callback")
+def auth_yahoo_callback():
+    """Handle the OAuth callback from Yahoo."""
+    error = request.args.get("error")
+    if error:
+        logger.warning("Yahoo OAuth error: %s", error)
+        return redirect("/?auth_error=" + error)
+
+    code = request.args.get("code")
+    if not code:
+        return redirect("/?auth_error=no_code")
+
+    tokens = exchange_code_for_tokens(code)
+    if not tokens:
+        return redirect("/?auth_error=token_exchange_failed")
+
+    yahoo_guid, display_name = fetch_yahoo_user_info(tokens["access_token"])
+    store_user_session(yahoo_guid, display_name, tokens)
+
+    logger.info("User %s (%s) logged in via Yahoo OAuth.", display_name, yahoo_guid)
+    return redirect("/")
+
+
+@app.route("/auth/code", methods=["POST"])
+def auth_manual_code():
+    """Accept a manually-entered authorization code (OOB fallback).
+
+    If Yahoo shows the authorization code on-screen instead of redirecting,
+    users can paste it here to complete login.
+    """
+    data = request.get_json()
+    code = (data.get("code") or "").strip()
+    if not code:
+        return jsonify({"error": "Authorization code is required."}), 400
+
+    tokens = exchange_code_for_tokens(code)
+    if not tokens:
+        return jsonify({"error": "Failed to exchange code for tokens. The code may have expired."}), 400
+
+    yahoo_guid, display_name = fetch_yahoo_user_info(tokens["access_token"])
+    store_user_session(yahoo_guid, display_name, tokens)
+
+    logger.info("User %s (%s) logged in via manual code entry.", display_name, yahoo_guid)
+    return jsonify({"status": "success", "user_name": display_name})
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    """Clear the user session."""
+    clear_user_session()
+    return jsonify({"status": "success"})
+
+
+@app.route("/api/auth/status")
+def auth_status():
+    """Return current authentication state."""
+    if current_user.is_authenticated:
+        return jsonify({
+            "authenticated": True,
+            "user_name": current_user.display_name,
+        })
+    return jsonify({"authenticated": False})
+
+
+# ---------------------------------------------------------------------------
+# Config + data API routes
+# ---------------------------------------------------------------------------
+
 @app.route("/api/config", methods=["GET"])
 def api_config():
     """Return current config (league ID, auth status)."""
-    config = load_config()
     return jsonify({
-        "league_id": config.get("league_id", ""),
-        "has_session": is_authenticated(),
+        "league_id": _get_league_id(),
+        "has_session": current_user.is_authenticated,
     })
 
 
 @app.route("/api/overview", methods=["GET"])
 def api_overview():
     """Return standings overview payload for React clients."""
-    config = load_config()
-    league_id = config.get("league_id", "")
-    payload = _build_overview_payload(load_standings(), league_id)
+    league_id = _get_league_id()
+    payload = _build_overview_payload(_get_standings(league_id), league_id)
     return jsonify(payload)
 
 
 @app.route("/api/analysis", methods=["GET"])
 def api_analysis():
     """Return target-category analysis payload for React clients."""
-    config = load_config()
-    league_id = config.get("league_id", "")
-    payload = _build_analysis_payload(load_standings(), league_id, request.args.get("team"))
+    league_id = _get_league_id()
+    payload = _build_analysis_payload(_get_standings(league_id), league_id, request.args.get("team"))
     return jsonify(payload)
 
 
 @app.route("/api/games-played", methods=["GET"])
 def api_games_played():
     """Return games played analysis payload for React clients."""
-    config = load_config()
-    league_id = config.get("league_id", "")
+    league_id = _get_league_id()
     params = _parse_games_played_inputs(request.args)
-    payload = _build_games_played_payload(load_standings(), league_id, **params)
+    payload = _build_games_played_payload(_get_standings(league_id), league_id, **params)
     return jsonify(payload)
 
 
 @app.route("/api/config", methods=["POST"])
 def set_config():
-    """Save league ID to config."""
+    """Save league ID to the session (no auth required)."""
     data = request.get_json()
     league_id = data.get("league_id", "").strip()
 
@@ -429,36 +574,47 @@ def set_config():
     if not league_id.isdigit():
         return jsonify({"status": "error", "error": "League ID must be a number."}), 400
 
-    config = load_config()
-    config["league_id"] = league_id
-    save_config(config)
+    session["league_id"] = league_id
+    session.modified = True
 
-    logger.info(f"League ID set to {league_id}")
+    user_name = current_user.display_name if current_user.is_authenticated else "anonymous"
+    logger.info("User %s set league ID to %s", user_name, league_id)
     return jsonify({"status": "success", "league_id": league_id})
 
 
 @app.route("/refresh", methods=["POST"])
+@login_required
 def refresh():
-    """Fetch fresh standings from the Yahoo Fantasy API."""
-    config = load_config()
-    league_id = config.get("league_id", "")
+    """Fetch fresh standings from the Yahoo Fantasy API using session tokens."""
+    league_id = _get_league_id()
 
     if not league_id:
         return jsonify({"status": "error", "error": "No league ID configured."}), 400
 
-    if not OAUTH_FILE.exists():
+    tokens = get_valid_tokens()
+    if not tokens:
+        clear_user_session()
         return jsonify({
             "status": "error",
-            "error": "Yahoo API not authorized. Run: python -m fba.oauth_setup",
+            "error": "Not authenticated. Please log in with Yahoo.",
+            "session_expired": True,
         }), 401
 
-    logger.info(f"Refresh requested — fetching standings via Yahoo API for league {league_id}...")
+    logger.info(
+        "Refresh requested by %s — fetching standings for league %s...",
+        current_user.display_name,
+        league_id,
+    )
 
     try:
-        data = fetch_and_save(league_id)
+        oauth = get_oauth_session_from_tokens(tokens["access_token"], tokens["refresh_token"])
+        data = fetch_standings(league_id, oauth=oauth)
+
+        # Store in memory cache — serves all subsequent page loads for this league
+        _standings_cache[league_id] = data
         teams_count = len(data.get("teams", []))
 
-        logger.info(f"API fetch complete — {teams_count} teams updated.")
+        logger.info("API fetch complete — %d teams updated.", teams_count)
         return jsonify({
             "status": "success",
             "timestamp": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
@@ -466,7 +622,8 @@ def refresh():
         })
 
     except AuthError as e:
-        logger.error(f"Auth error: {e}")
+        logger.error("Auth error: %s", e)
+        clear_user_session()
         return jsonify({
             "status": "error",
             "error": str(e),
@@ -474,11 +631,11 @@ def refresh():
         }), 401
 
     except YahooAPIError as e:
-        logger.error(f"Yahoo API error: {e}")
+        logger.error("Yahoo API error: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500
 
     except Exception as e:
-        logger.error(f"Unexpected error during refresh: {e}")
+        logger.error("Unexpected error during refresh: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500
 
 

@@ -1,5 +1,10 @@
 export type JsonRecord = Record<string, unknown>;
 
+export interface AuthPayload {
+  authenticated: boolean;
+  user_name?: string;
+}
+
 export interface ConfigPayload {
   league_id: string;
   has_session: boolean;

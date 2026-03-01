@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { getAuthStatus, logout } from "../lib/api";
 import { LeagueControls } from "./LeagueControls";
 
 interface AppShellProps {
@@ -15,6 +16,21 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [userName, setUserName] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAuthStatus(controller.signal)
+      .then((auth) => {
+        setAuthenticated(auth.authenticated);
+        setUserName(auth.user_name ?? "");
+      })
+      .catch(() => {
+        setAuthenticated(false);
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -31,6 +47,20 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
     document.addEventListener("mousedown", onDocumentClick);
     return () => document.removeEventListener("mousedown", onDocumentClick);
   }, []);
+
+  function refreshAuth() {
+    getAuthStatus()
+      .then((auth) => {
+        setAuthenticated(auth.authenticated);
+        setUserName(auth.user_name ?? "");
+      })
+      .catch(() => setAuthenticated(false));
+  }
+
+  async function handleLogout() {
+    await logout();
+    window.location.reload();
+  }
 
   return (
     <div className="app-shell">
@@ -66,7 +96,20 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
 
           <div className="header-right">
             {scrapedAt ? <div className="meta">Updated {scrapedAt}</div> : null}
-            <LeagueControls leagueId={leagueId} loading={loading} onReload={onReload} />
+            <LeagueControls
+              leagueId={leagueId}
+              loading={loading}
+              onReload={onReload}
+              onAuthChange={refreshAuth}
+            />
+            {authenticated ? (
+              <div className="auth-bar">
+                <span className="meta">{userName}</span>
+                <button className="ghost" onClick={() => void handleLogout()} type="button">
+                  Logout
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       </header>

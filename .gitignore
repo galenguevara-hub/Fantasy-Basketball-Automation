@@ -1,4 +1,5 @@
-# OAuth credentials (contains secrets)
+# OAuth credentials and secrets (never commit these)
+.env
 oauth2.json
 google_credentials.json
 google_token.json

@@ -1,8 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { AppShell } from "../components/AppShell";
 import { DataTable } from "../components/DataTable";
 import { StatusPanel } from "../components/StatusPanel";
-import { getOverview } from "../lib/api";
+import { getOverview, refreshStandings } from "../lib/api";
 import { formatCompact, formatFixed, toNumber } from "../lib/format";
 import type { TeamRow } from "../lib/types";
 import { useAsyncData } from "../lib/useAsyncData";
@@ -116,9 +116,23 @@ function toOverallStatsRows(teams: TeamRow[]) {
 export function OverviewPage() {
   const loader = useCallback((signal: AbortSignal) => getOverview(signal), []);
   const { data, loading, error, reload } = useAsyncData(loader, []);
+  const autoRefreshed = useRef(false);
 
   const hasData = Boolean(data?.has_data);
   const leagueId = data?.league_id ?? "";
+
+  // Step F: Auto-refresh on return if league ID is set but no cached data
+  useEffect(() => {
+    if (leagueId && !hasData && !loading && !error && !autoRefreshed.current) {
+      autoRefreshed.current = true;
+      refreshStandings()
+        .then(() => reload())
+        .catch(() => {
+          // 401 = not authenticated, user will need to re-auth via Connect flow
+          // Other errors are ignored — user can click Refresh manually
+        });
+    }
+  }, [leagueId, hasData, loading, error, reload]);
 
   return (
     <AppShell leagueId={leagueId} loading={loading} onReload={reload} scrapedAt={data?.scraped_at ?? null}>

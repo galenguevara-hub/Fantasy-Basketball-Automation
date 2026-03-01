@@ -1,9 +1,19 @@
 import type {
   AnalysisPayload,
+  AuthPayload,
   ConfigPayload,
   GamesPlayedPayload,
   OverviewPayload
 } from "./types";
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -24,10 +34,25 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore JSON parsing failures
     }
-    throw new Error(detail);
+    throw new ApiError(response.status, detail);
   }
 
   return (await response.json()) as T;
+}
+
+export function getAuthStatus(signal?: AbortSignal) {
+  return fetchJson<AuthPayload>("/api/auth/status", { signal });
+}
+
+export function logout() {
+  return fetchJson<{ status: string }>("/logout", { method: "POST" });
+}
+
+export function submitAuthCode(code: string) {
+  return fetchJson<{ status: string; user_name: string }>("/auth/code", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
 }
 
 export function getConfig(signal?: AbortSignal) {

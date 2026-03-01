@@ -7,8 +7,12 @@ Produces the same standings.json format consumed by normalize.py and the rest of
 
 import json
 import logging
+import os
+import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from yahoo_oauth import OAuth2
 from yahoo_fantasy_api import Game
@@ -69,6 +73,39 @@ def get_oauth_session() -> OAuth2:
                 f"OAuth token expired and could not be refreshed: {e}. "
                 "Run oauth_setup.py to re-authorize."
             )
+
+    return oauth
+
+
+def get_oauth_session_from_tokens(access_token: str, refresh_token: str) -> OAuth2:
+    """Build a yahoo_oauth OAuth2 session from token values (no credentials file needed).
+
+    Writes a temporary JSON file (deleted immediately after OAuth2 loads it) so
+    yahoo_oauth can initialise its internal OAuth2Session without a permanent file.
+    The caller is responsible for passing a still-valid access_token so that
+    yahoo_oauth does not attempt a mid-request refresh (which would fail because
+    the temp file is gone).
+    """
+    from fba.config import Config  # local import avoids circular dependency at module level
+
+    token_data = {
+        "consumer_key": Config.YAHOO_CLIENT_ID,
+        "consumer_secret": Config.YAHOO_CLIENT_SECRET,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_time": time.time(),
+        "token_type": "bearer",
+        "expires_in": 3600,  # tell yahoo_oauth this token is valid so it doesn't re-auth via stdin
+    }
+
+    fd, temp_path = tempfile.mkstemp(suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(token_data, f)
+        oauth = OAuth2(None, None, from_file=temp_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
     return oauth
 
@@ -177,11 +214,13 @@ def compute_roto_points(teams_data: list[dict]) -> dict:
     return roto
 
 
-def fetch_standings(league_id: str) -> dict:
+def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
     """Fetch league standings from Yahoo Fantasy API.
 
     Args:
         league_id: The numeric league ID (e.g., "47205").
+        oauth: Optional pre-built OAuth2 session. If not provided, falls back to
+               the file-based session (legacy single-user mode).
 
     Returns:
         Dict in the exact standings.json format consumed by the rest of the app.
@@ -190,7 +229,8 @@ def fetch_standings(league_id: str) -> dict:
         AuthError: If OAuth credentials are missing or expired.
         YahooAPIError: If the API returns an error.
     """
-    oauth = get_oauth_session()
+    if oauth is None:
+        oauth = get_oauth_session()
     game = Game(oauth, "nba")
     game_id = game.game_id()
 

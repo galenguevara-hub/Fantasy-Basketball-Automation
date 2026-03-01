@@ -19,15 +19,31 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(app_module, "STANDINGS_FILE", standings_file)
     monkeypatch.setattr(app_module, "FRONTEND_DIST_DIR", frontend_dist_dir)
     monkeypatch.setattr(app_module, "FRONTEND_INDEX_FILE", frontend_index_file)
-    monkeypatch.setattr(app_module, "is_authenticated", lambda: False)
     monkeypatch.delenv("FBA_UI_MODE", raising=False)
 
     app_module.app.config["TESTING"] = True
-    return app_module.app.test_client(), standings_file, frontend_dist_dir
+    app_module.app.config["LOGIN_DISABLED"] = True
+
+    # Clear in-memory cache between tests
+    app_module._standings_cache.clear()
+
+    test_client = app_module.app.test_client()
+
+    # Set league_id in session (React mode reads from session, not config file)
+    with test_client.session_transaction() as sess:
+        sess["league_id"] = "12345"
+
+    return test_client, standings_file, frontend_dist_dir
 
 
-def _write_sample_standings(path: Path):
-    payload = {
+def _load_sample_standings_to_cache():
+    """Load sample standings into the in-memory cache for league '12345'."""
+    payload = _sample_standings_payload()
+    app_module._standings_cache["12345"] = payload
+
+
+def _sample_standings_payload():
+    return {
         "scraped_at": "2026-02-25 11:20:00 AM",
         "league": {
             "categories": [
@@ -122,7 +138,7 @@ def _write_sample_standings(path: Path):
             },
         ],
     }
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    return payload
 
 
 def test_api_overview_without_data(client):
@@ -138,8 +154,8 @@ def test_api_overview_without_data(client):
 
 
 def test_api_overview_with_data(client):
-    test_client, standings_file, _ = client
-    _write_sample_standings(standings_file)
+    test_client, _, _ = client
+    _load_sample_standings_to_cache()
 
     response = test_client.get("/api/overview")
     assert response.status_code == 200
@@ -153,8 +169,8 @@ def test_api_overview_with_data(client):
 
 
 def test_api_analysis_supports_team_selection(client):
-    test_client, standings_file, _ = client
-    _write_sample_standings(standings_file)
+    test_client, _, _ = client
+    _load_sample_standings_to_cache()
 
     response = test_client.get("/api/analysis?team=Bravo")
     assert response.status_code == 200
@@ -168,8 +184,8 @@ def test_api_analysis_supports_team_selection(client):
 
 
 def test_api_games_played_uses_defaults_for_bad_dates(client):
-    test_client, standings_file, _ = client
-    _write_sample_standings(standings_file)
+    test_client, _, _ = client
+    _load_sample_standings_to_cache()
 
     response = test_client.get("/api/games-played?start=bad-date&end=2026-03-22&total_games=0")
     assert response.status_code == 200

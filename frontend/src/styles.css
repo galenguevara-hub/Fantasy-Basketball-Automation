@@ -133,6 +133,7 @@ body {
 }
 
 .header-right {
+  position: relative;
   min-width: 260px;
   display: flex;
   flex-direction: column;
@@ -587,4 +588,116 @@ td.col-total {
   .summary-panel {
     grid-template-columns: 1fr;
   }
+}
+
+/* Login page */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  text-align: center;
+  max-width: 420px;
+  padding: 48px 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.login-card h1 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.login-subtitle {
+  margin: 0 0 32px;
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.login-btn {
+  display: inline-block;
+  padding: 12px 32px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.login-btn:hover {
+  background: var(--accent-strong);
+}
+
+.login-code-toggle {
+  display: block;
+  margin: 20px auto 0;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.login-code-toggle:hover {
+  color: var(--ink);
+}
+
+.login-code-entry {
+  margin-top: 24px;
+  text-align: left;
+}
+
+.login-code-hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.login-code-entry input {
+  width: 100%;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.login-code-entry button {
+  width: 100%;
+}
+
+/* Auth bar (header) */
+.auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* Code entry hint (inline in LeagueControls) */
+.code-entry {
+  margin-top: 4px;
+}
+
+.code-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* Loading screen */
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--muted);
 }

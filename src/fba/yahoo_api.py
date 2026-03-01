@@ -3,6 +3,7 @@ Yahoo Fantasy Basketball API Client
 
 Replaces the Playwright-based scraper with direct Yahoo Fantasy API calls.
 Produces the same standings.json format consumed by normalize.py and the rest of the app.
+Still includes a legacy file-based OAuth fallback for archived manual tools.
 """
 
 import json
@@ -51,13 +52,13 @@ class AuthError(YahooAPIError):
 
 
 def get_oauth_session() -> OAuth2:
-    """Create and return a valid OAuth2 session.
+    """Create and return a valid OAuth2 session for the legacy file-based flow.
 
     Raises AuthError if credentials file is missing or token cannot be refreshed.
     """
     if not OAUTH_FILE.exists():
         raise AuthError(
-            "No OAuth credentials found. Run oauth_setup.py to authorize with Yahoo."
+            "No OAuth credentials found. Use legacy/oauth_setup.py to authorize with Yahoo."
         )
 
     try:
@@ -71,7 +72,7 @@ def get_oauth_session() -> OAuth2:
         except Exception as e:
             raise AuthError(
                 f"OAuth token expired and could not be refreshed: {e}. "
-                "Run oauth_setup.py to re-authorize."
+                "Run legacy/oauth_setup.py to re-authorize."
             )
 
     return oauth
@@ -111,7 +112,7 @@ def get_oauth_session_from_tokens(access_token: str, refresh_token: str) -> OAut
 
 
 def is_authenticated() -> bool:
-    """Check if valid OAuth credentials exist."""
+    """Check if valid legacy file-based OAuth credentials exist."""
     if not OAUTH_FILE.exists():
         return False
     try:

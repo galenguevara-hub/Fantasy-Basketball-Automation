@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Yahoo Fantasy Basketball Standings Scraper
+Archived Yahoo Fantasy Basketball standings scraper.
 
 Uses Playwright to scrape the Yahoo Fantasy standings page (requires login).
 Saves browser session state after first login so subsequent runs are headless.
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 LEAGUE_ID = "47205"
 STANDINGS_URL = "https://basketball.fantasysports.yahoo.com/nba/{league_id}/standings"
-_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 BROWSER_STATE_FILE = str(_DATA_DIR / "browser_state.json")
 STANDINGS_OUTPUT_FILE = str(_DATA_DIR / "standings.json")
 

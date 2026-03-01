@@ -3,17 +3,21 @@
 oauth2.json
 google_credentials.json
 google_token.json
+data/oauth2.json
+data/google_credentials.json
+data/google_token.json
 
 # Output files
-standings.csv
-standings.json
-config.json
+data/standings.csv
+data/standings.json
+data/config.json
+data/browser_state.json
 out/
 server.log
 
-# Yahoo API test sandbox
-yahoo_api_test/oauth2.json
-yahoo_api_test/venv/
+# Legacy Yahoo API test sandbox
+legacy/yahoo_api_test/oauth2.json
+legacy/yahoo_api_test/venv/
 
 # Python
 __pycache__/
@@ -28,6 +32,7 @@ build/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/tsconfig.tsbuildinfo
 
 # IDE
 .idea/

@@ -13,8 +13,6 @@ Status: current as of March 1, 2026.
 - Category target analysis in `src/fba/analysis/category_targets.py`
 - Cluster leverage analysis in `src/fba/analysis/cluster_leverage.py`
 - Games-played pace analysis in `src/fba/analysis/games_played.py`
-- Optional legacy Playwright scraper in `src/fba/scraper.py`
-- Optional file-based OAuth helper in `src/fba/oauth_setup.py`
 
 ## Active Endpoints (`src/fba/app.py`)
 
@@ -37,19 +35,29 @@ Status: current as of March 1, 2026.
 
 ## Runtime Notes
 
-- Default mode is `FBA_UI_MODE=react`.
-- `react` and `auto` require `frontend/dist/index.html`.
-- `legacy` serves templates and reads disk-backed config/data.
-- `POST /refresh` requires an authenticated user and uses session-held Yahoo tokens.
-- React-mode refreshed standings are stored in `_standings_cache`, keyed by `league_id`.
-- `normalize.py` ranking direction is `N = best`, `1 = worst`.
+- Default mode is `FBA_UI_MODE=react`
+- `react` and `auto` require `frontend/dist/index.html`
+- `legacy` serves templates and reads disk-backed config/data
+- `POST /refresh` requires an authenticated user and uses session-held Yahoo
+  tokens
+- React-mode refreshed standings are stored in `_standings_cache`, keyed by
+  `league_id`
+- `normalize.py` ranking direction is `N = best`, `1 = worst`
 
-## Disk Files Still Used
+## Disk Files Still Used By Supported Code
 
-- `data/config.json`: legacy-only config fallback
-- `data/standings.json`: legacy template data source and scraper output
-- `data/oauth2.json`: optional file-based Yahoo OAuth credentials
-- `data/browser_state.json`: optional Playwright login state
+- `data/config.json`: legacy-template config fallback
+- `data/standings.json`: legacy-template standings fallback
+
+`data/oauth2.json` still exists as a legacy fallback path inside
+`src/fba/yahoo_api.py`, but the supported web flow does not require it.
+
+## Cleanup Notes
+
+- Deprecated utilities and exploratory scripts were moved to `legacy/`
+- The frontend duplicate `.js` files were removed
+- `frontend/tsconfig.tsbuildinfo` is no longer tracked
+- old documentation handoff text files were removed
 
 ## Verification Snapshot
 
@@ -61,4 +69,5 @@ Executed on March 1, 2026:
 Attempted on March 1, 2026:
 
 - `./venv/bin/pytest -q`
-- Result: collection failed because the checked-in `venv` is missing backend dependencies, including `python-dotenv` and `flask-login`
+- Result: collection failed because the checked-in `venv` is missing backend
+  dependencies, including `python-dotenv` and `flask-login`

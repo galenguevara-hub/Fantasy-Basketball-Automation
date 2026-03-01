@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flask webhook server for triggering Yahoo Fantasy data updates.
+Archived Flask webhook server for an older Yahoo-to-Google-Sheets flow.
 
 This server provides endpoints that can be called from Google Apps Script
 to fetch fresh data and update the Google Sheet.

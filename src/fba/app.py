@@ -38,7 +38,6 @@ from fba.yahoo_api import (
     YahooAPIError,
     fetch_standings,
     get_oauth_session_from_tokens,
-    OAUTH_FILE,
 )
 
 logging.basicConfig(

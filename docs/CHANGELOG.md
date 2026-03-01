@@ -2,13 +2,26 @@
 
 ## 2026-03-01
 
+### Repository cleanup
+
+- Moved deprecated tooling into `legacy/`:
+  - old Playwright scraper
+  - old file-based OAuth setup helper
+  - removed Google Sheets webhook flow
+  - exploratory Yahoo API scripts
+  - old manual test runner
+- Removed the duplicate frontend `.js` source files and kept the React app
+  TypeScript-only.
+- Removed `frontend/tsconfig.tsbuildinfo` from version control and ignored it.
+- Removed the tracked `data/browser_state.json` runtime artifact.
+- Removed the one-off documentation handoff files in `docs/`.
+
 ### Documentation synchronization
 
-- Rewrote the setup and flow docs around the current Yahoo OAuth web flow in `src/fba/auth.py`.
-- Corrected the refresh path to match `src/fba/app.py`: `POST /refresh` uses `src/fba/yahoo_api.py`, not `src/fba/scraper.py`.
-- Clarified that the default React flow keeps standings in the in-memory cache and does not automatically write `data/standings.json`.
-- Clarified that `src/fba/scraper.py`, `data/browser_state.json`, and `src/fba/oauth_setup.py` are optional legacy/manual paths.
-- Added the currently active auth endpoints to the route documentation.
+- Rewrote the docs around the supported Yahoo OAuth web flow in `src/fba/auth.py`
+  and the direct refresh path in `src/fba/yahoo_api.py`.
+- Simplified the docs to distinguish the supported path from the archived
+  `legacy/` material.
 
 ### Verification snapshot
 

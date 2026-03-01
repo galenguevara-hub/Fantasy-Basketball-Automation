@@ -1,12 +1,12 @@
 """
-Yahoo OAuth Setup
+Archived Yahoo OAuth setup helper.
 
 Handles first-time OAuth authorization and credential management.
 Replaces the Playwright browser login flow.
 
 Usage:
-    python -m fba.oauth_setup              # Interactive setup
-    python -m fba.oauth_setup --check      # Check auth status
+    python legacy/oauth_setup.py           # Interactive setup
+    python legacy/oauth_setup.py --check   # Check auth status
 """
 
 import argparse
@@ -17,7 +17,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 OAUTH_FILE = _DATA_DIR / "oauth2.json"
 
 

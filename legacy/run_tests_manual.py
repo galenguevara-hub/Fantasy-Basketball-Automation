@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Manual test runner for normalization logic (no pytest required).
+Archived manual test runner for normalization logic (no pytest required).
 Verifies all core functionality works correctly.
 """
 

@@ -1,6 +1,7 @@
 # React Frontend
 
-This directory contains the React + Vite UI for the main `FBA_UI_MODE=react` experience.
+This directory contains the supported React + Vite UI for the app's default
+`FBA_UI_MODE=react` experience.
 
 ## Routes
 
@@ -10,7 +11,7 @@ This directory contains the React + Vite UI for the main `FBA_UI_MODE=react` exp
 
 ## Backend Contracts
 
-The frontend depends on these backend endpoints:
+The frontend depends on:
 
 - `GET /api/auth/status`
 - `POST /logout`
@@ -21,16 +22,19 @@ The frontend depends on these backend endpoints:
 - `GET /api/games-played`
 - `POST /refresh`
 
-Auth initiation is handled by browser navigation to `GET /auth/yahoo` when the UI receives a `401`.
+Auth initiation is handled by browser navigation to `GET /auth/yahoo` when the
+UI receives a `401`.
 
-## Page Behavior
+## Code Layout
 
-- `OverviewPage` renders four sortable tables: overall standings, raw stats, per-game averages, and per-game category rankings.
-- `OverviewPage` attempts one automatic refresh when a league ID exists but no cached data is loaded yet.
-- `AnalysisPage` stores the selected team in `?team=<TEAM_NAME>`.
-- `AnalysisPage` renders both layer-1 target scoring and layer-2 cluster leverage.
-- `GamesPlayedPage` stores filters in `?start=YYYY-MM-DD&end=YYYY-MM-DD&total_games=<N>`.
-- `DataTable` provides client-side sorting for every column header.
+- `src/main.tsx`: entrypoint
+- `src/App.tsx`: route map
+- `src/components/`: shared UI
+- `src/pages/`: route components
+- `src/lib/`: API, formatting, and async helpers
+
+The frontend is now TypeScript-only. The duplicate `.js` versions of these
+files were removed.
 
 ## Local Development
 
@@ -40,7 +44,7 @@ From the repo root:
 ./scripts/start_dev.sh
 ```
 
-Or run only the frontend:
+Or frontend only:
 
 ```bash
 cd "/Users/galen/projects/Fantasy Basketball Automation/frontend"
@@ -50,19 +54,18 @@ npm run dev
 
 Vite runs on `http://localhost:5173`.
 
-Proxy rules in `vite.config.ts` forward:
+`vite.config.ts` currently proxies:
 
 - `/api` -> `http://localhost:8080`
 - `/refresh` -> `http://localhost:8080`
-
-In the current setup, `/auth/*` and `/logout` are not proxied by Vite. That means OAuth login/logout works out of the box on the Flask-served app at `http://localhost:8080`; if you use the Vite origin at `http://localhost:5173`, add matching proxy rules first.
+- `/auth` -> `http://localhost:8080`
+- `/logout` -> `http://localhost:8080`
 
 ## Production Build
-
-Build the bundle Flask serves in default mode:
 
 ```bash
 npm run build
 ```
 
-`src/fba/app.py` serves `frontend/dist/index.html` for `/`, `/analysis`, and `/games-played` when `FBA_UI_MODE` is `react` (or `auto`).
+`src/fba/app.py` serves `frontend/dist/index.html` for `/`, `/analysis`, and
+`/games-played` when `FBA_UI_MODE` is `react` or `auto`.

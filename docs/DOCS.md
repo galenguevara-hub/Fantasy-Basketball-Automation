@@ -2,21 +2,19 @@
 
 ## Primary Docs
 
-- `README.md`: repo overview, setup, routes, runtime behavior
+- `README.md`: repo overview, setup, routes, and supported runtime path
 - `docs/QUICKSTART.md`: shortest path to a working local install
-- `docs/ARCHITECTURE.md`: runtime modes, data flow, and component responsibilities
-- `docs/IMPLEMENTATION_SUMMARY.md`: current implementation and verification snapshot
-- `docs/CHANGELOG.md`: documentation and behavior history
+- `docs/ARCHITECTURE.md`: runtime modes, data flow, and module responsibilities
+- `docs/IMPLEMENTATION_SUMMARY.md`: current implementation and verification
+- `docs/CHANGELOG.md`: repo and docs cleanup history
 
-## Verification And Summary Notes
+## Frontend Doc
 
-- `docs/FEATURE_VERIFICATION.txt`: what was checked against code on the latest docs pass
-- `docs/UPDATES_SUMMARY.txt`: concise summary of the latest docs refresh
-- `docs/FINAL_SUMMARY.txt`: final completion note for the latest docs refresh
+- `frontend/README.md`: React routes, backend contracts, and build/dev workflow
 
-## Frontend-Specific Doc
+## Archive Doc
 
-- `frontend/README.md`: React routes, backend contracts, dev/prod workflow
+- `legacy/README.md`: what was moved out of the supported path and why
 
 ## Code References
 
@@ -27,7 +25,6 @@
 - `src/fba/analysis/category_targets.py`: layer-1 target analysis
 - `src/fba/analysis/cluster_leverage.py`: layer-2 cluster analysis
 - `src/fba/analysis/games_played.py`: pace analysis
-- `src/fba/scraper.py`: optional Playwright scraper
 - `scripts/start_server.sh`: default local startup
 - `scripts/start_dev.sh`: backend + Vite dev startup
 
@@ -35,5 +32,6 @@
 
 As of March 1, 2026:
 
-- pure calculation tests: `120 passed`
-- full `./venv/bin/pytest -q` run is blocked in the checked-in `venv` until requirements are reinstalled there
+- maintained calculation tests: `120 passed`
+- full `./venv/bin/pytest -q` is still blocked in the checked-in `venv` until
+  backend requirements are reinstalled

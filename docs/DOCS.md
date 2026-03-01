@@ -2,25 +2,38 @@
 
 ## Primary Docs
 
-- `README.md`: high-level overview, setup, commands, endpoints
-- `docs/QUICKSTART.md`: minimal setup and first run
-- `docs/ARCHITECTURE.md`: component and data-flow details
-- `docs/CHANGELOG.md`: documentation and behavior updates
-- `docs/IMPLEMENTATION_SUMMARY.md`: current implementation and test snapshot
+- `README.md`: repo overview, setup, routes, runtime behavior
+- `docs/QUICKSTART.md`: shortest path to a working local install
+- `docs/ARCHITECTURE.md`: runtime modes, data flow, and component responsibilities
+- `docs/IMPLEMENTATION_SUMMARY.md`: current implementation and verification snapshot
+- `docs/CHANGELOG.md`: documentation and behavior history
 
-## Practical References
+## Verification And Summary Notes
 
-- Main server: `src/fba/app.py`
-- Scraper: `src/fba/scraper.py`
-- Normalization: `src/fba/normalize.py`
-- Category analysis: `src/fba/analysis/category_targets.py`
-- Cluster analysis: `src/fba/analysis/cluster_leverage.py`
-- Games played analysis: `src/fba/analysis/games_played.py`
-- Startup script: `scripts/start_server.sh`
-- Tests:
-  - `tests/test_normalize.py`
-  - `tests/test_category_targets.py`
-  - `tests/test_cluster_leverage.py`
-  - `tests/test_games_played.py`
-  - `tests/test_app_api.py`
-  - `tests/test_calculation_regression_parity.py`
+- `docs/FEATURE_VERIFICATION.txt`: what was checked against code on the latest docs pass
+- `docs/UPDATES_SUMMARY.txt`: concise summary of the latest docs refresh
+- `docs/FINAL_SUMMARY.txt`: final completion note for the latest docs refresh
+
+## Frontend-Specific Doc
+
+- `frontend/README.md`: React routes, backend contracts, dev/prod workflow
+
+## Code References
+
+- `src/fba/app.py`: Flask entrypoint and route definitions
+- `src/fba/auth.py`: Yahoo OAuth and session handling
+- `src/fba/yahoo_api.py`: Yahoo Fantasy API client
+- `src/fba/normalize.py`: per-game normalization and re-ranking
+- `src/fba/analysis/category_targets.py`: layer-1 target analysis
+- `src/fba/analysis/cluster_leverage.py`: layer-2 cluster analysis
+- `src/fba/analysis/games_played.py`: pace analysis
+- `src/fba/scraper.py`: optional Playwright scraper
+- `scripts/start_server.sh`: default local startup
+- `scripts/start_dev.sh`: backend + Vite dev startup
+
+## Current Verification Snapshot
+
+As of March 1, 2026:
+
+- pure calculation tests: `120 passed`
+- full `./venv/bin/pytest -q` run is blocked in the checked-in `venv` until requirements are reinstalled there

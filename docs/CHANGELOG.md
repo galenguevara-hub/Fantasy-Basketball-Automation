@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-03-01
+
+### Documentation synchronization
+
+- Rewrote the setup and flow docs around the current Yahoo OAuth web flow in `src/fba/auth.py`.
+- Corrected the refresh path to match `src/fba/app.py`: `POST /refresh` uses `src/fba/yahoo_api.py`, not `src/fba/scraper.py`.
+- Clarified that the default React flow keeps standings in the in-memory cache and does not automatically write `data/standings.json`.
+- Clarified that `src/fba/scraper.py`, `data/browser_state.json`, and `src/fba/oauth_setup.py` are optional legacy/manual paths.
+- Added the currently active auth endpoints to the route documentation.
+
+### Verification snapshot
+
+- Executed on March 1, 2026:
+  - `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
+  - Result: `120 passed`
+- Attempted on March 1, 2026:
+  - `./venv/bin/pytest -q`
+  - Current checked-in `venv` failed during collection because backend dependencies such as `python-dotenv` and `flask-login` are missing there
+
 ## 2026-02-27
 
 ### React parity and behavior updates

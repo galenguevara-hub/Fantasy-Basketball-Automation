@@ -1,47 +1,43 @@
 DOCUMENTATION UPDATES SUMMARY
-Date: February 22, 2026
+Date: March 1, 2026
 
 Objective
-Update all README/documentation files so they reflect the latest implementation and file structure.
+Update all README/documentation files so they describe the current `main` branch implementation, not the older scraper-led flow.
 
 Result
-Completed. Documentation now aligns with the current repository layout and runtime behavior.
+Completed. The docs now match the app's current Yahoo OAuth, React-first, session-backed behavior.
 
 Key Fixes Applied
-1. Paths and commands
-- Replaced outdated root-level script references with current paths:
-  - src/fba/app.py
-  - src/fba/scraper.py
-  - scripts/start_server.sh
-  - scripts/run_tests_manual.py
+1. Runtime flow
+- Replaced "Connect launches the scraper" language with the actual flow:
+  - set league ID in session
+  - redirect to Yahoo OAuth when needed
+  - refresh via `src/fba/yahoo_api.py`
+  - cache standings in memory
 
-2. Endpoints
-- Updated endpoint docs to match src/fba/app.py exactly.
+2. Data persistence
+- Clarified that `POST /refresh` does not automatically update `data/standings.json`.
+- Documented the remaining legacy/manual uses of:
+  - `data/config.json`
+  - `data/standings.json`
+  - `data/oauth2.json`
+  - `data/browser_state.json`
 
-3. Runtime data locations
-- Standardized docs to use data/config.json, data/browser_state.json, data/standings.json.
+3. Route coverage
+- Added missing auth endpoints to the docs.
+- Kept the API route list aligned with `src/fba/app.py`.
 
-4. Ranking behavior
-- Corrected docs to reflect normalize.py behavior: N=best, 1=worst.
+4. UI behavior
+- Kept React mode documented as the default.
+- Kept `FBA_UI_MODE=legacy` documented as the template fallback.
+- Preserved React URL state behavior for analysis and games-played pages.
 
-5. Legacy component status
-- Marked src/fba/webhook_server.py as legacy/optional because it references non-present scripts.
-
-6. Test snapshot
-- Recorded current executed result from ./venv/bin/pytest -q:
-  - 40 passed
-  - 4 failed (tests/test_normalize.py rank-direction expectations)
-
-Files Covered
-- README.md
-- docs/QUICKSTART.md
-- docs/ARCHITECTURE.md
-- docs/DOCS.md
-- docs/CHANGELOG.md
-- docs/IMPLEMENTATION_SUMMARY.md
-- docs/FEATURE_VERIFICATION.txt
-- docs/FINAL_SUMMARY.txt
-- docs/UPDATES_SUMMARY.txt
+5. Verification
+- Recorded the current passing command:
+  - `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
+  - result: `120 passed`
+- Recorded the current blocker on the checked-in `venv` for the full suite:
+  - missing backend packages such as `python-dotenv` and `flask-login`
 
 Constraint Compliance
 - No non-documentation files were edited.

@@ -1,42 +1,66 @@
 FEATURE VERIFICATION (Current)
-Date: February 22, 2026
+Date: March 1, 2026
 
 Scope
-- Verified documentation against current implementation and file structure.
-- No code files were modified.
+- Verified documentation against the current `main` branch code.
+- Verified that no application code files were changed.
 
 Verified Components
+- README.md
+- docs/QUICKSTART.md
+- docs/ARCHITECTURE.md
+- docs/DOCS.md
+- docs/CHANGELOG.md
+- docs/IMPLEMENTATION_SUMMARY.md
+- frontend/README.md
 - src/fba/app.py
-- src/fba/scraper.py
+- src/fba/auth.py
+- src/fba/yahoo_api.py
 - src/fba/normalize.py
 - src/fba/analysis/category_targets.py
+- src/fba/analysis/cluster_leverage.py
+- src/fba/analysis/games_played.py
+- src/fba/scraper.py
 - scripts/start_server.sh
-- scripts/run_tests_manual.py
-- tests/test_normalize.py
-- tests/test_category_targets.py
+- scripts/start_dev.sh
 
-Verified Runtime/Data Paths
-- data/config.json
-- data/browser_state.json
-- data/standings.json
+Verified Runtime Behavior
+- Default web flow uses Yahoo OAuth plus direct Yahoo Fantasy API refreshes.
+- `POST /refresh` uses session tokens and in-memory cache, not the Playwright scraper.
+- Legacy mode still reads `data/config.json` and `data/standings.json`.
+- `src/fba/scraper.py` still writes `data/standings.json` and `data/browser_state.json`, but it is optional.
 
 Current Endpoint Verification
 - GET /
 - GET /analysis
-- POST /refresh
-- GET /api/standings
+- GET /games-played
+- GET /auth/yahoo
+- GET /auth/yahoo/callback
+- POST /auth/code
+- POST /logout
+- GET /api/auth/status
 - GET /api/config
 - POST /api/config
+- GET /api/overview
+- GET /api/analysis
+- GET /api/games-played
+- POST /refresh
+- GET /api/standings
+- GET /assets/<file>
 
 Command Verification
-- ./scripts/start_server.sh (documented as primary startup)
-- ./venv/bin/pytest -q (executed)
+- Executed:
+  - ./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py
+- Attempted:
+  - ./venv/bin/pytest -q
 
 Current Test Result
-- 40 passed, 4 failed
-- Failures are in tests/test_normalize.py rank-direction assertions.
-- Current normalize.py ranking behavior is N=best, 1=worst.
+- Pure calculation suite: 120 passed
+- Full suite: collection error in the checked-in `venv`
+- Missing packages observed in that `venv` include:
+  - python-dotenv
+  - flask-login
 
 Notes
-- src/fba/webhook_server.py exists but references old scripts not present in this repository.
-- It is documented as legacy/optional and not part of the main app flow.
+- `src/fba/webhook_server.py` remains legacy/optional and is not part of the main runtime path.
+- The current React-first flow requires a built frontend unless `FBA_UI_MODE=legacy` is set.

@@ -1,51 +1,64 @@
 # Implementation Summary
 
-Status: current as of February 27, 2026.
+Status: current as of March 1, 2026.
 
-## What is implemented
+## What Is Implemented
 
-- Web app server in `src/fba/app.py`.
-- Yahoo standings scraper in `src/fba/scraper.py`.
-- Per-game normalization in `src/fba/normalize.py`.
-- Category target analysis in `src/fba/analysis/category_targets.py`.
-- Cluster leverage analysis in `src/fba/analysis/cluster_leverage.py`.
-- Games-played pace analysis in `src/fba/analysis/games_played.py`.
-- Legacy template UI in `src/fba/templates/` + `src/fba/static/`.
-- React UI in `frontend/` with API-backed pages for standings, category analysis, and games played.
+- Flask web app in `src/fba/app.py`
+- React UI in `frontend/`
+- Legacy Jinja UI in `src/fba/templates/`
+- Yahoo OAuth web login and encrypted session token storage in `src/fba/auth.py`
+- Direct Yahoo Fantasy API refresh path in `src/fba/yahoo_api.py`
+- Per-game normalization in `src/fba/normalize.py`
+- Category target analysis in `src/fba/analysis/category_targets.py`
+- Cluster leverage analysis in `src/fba/analysis/cluster_leverage.py`
+- Games-played pace analysis in `src/fba/analysis/games_played.py`
+- Optional legacy Playwright scraper in `src/fba/scraper.py`
+- Optional file-based OAuth helper in `src/fba/oauth_setup.py`
 
-## Active endpoints (`src/fba/app.py`)
+## Active Endpoints (`src/fba/app.py`)
 
 - `GET /`
 - `GET /analysis`
 - `GET /games-played`
-- `POST /refresh`
-- `GET /api/standings`
+- `GET /auth/yahoo`
+- `GET /auth/yahoo/callback`
+- `POST /auth/code`
+- `POST /logout`
+- `GET /api/auth/status`
 - `GET /api/config`
 - `POST /api/config`
 - `GET /api/overview`
 - `GET /api/analysis`
 - `GET /api/games-played`
+- `POST /refresh`
+- `GET /api/standings`
 - `GET /assets/<path:filename>`
 
-## Runtime/UI behavior
+## Runtime Notes
 
-- UI mode switch via `FBA_UI_MODE`:
-  - `react` (default)
-  - `legacy`
-  - `auto` (alias of `react`)
-- Rankings from `normalize.py` use `N=best`, `1=worst`.
-- React defaults:
-  - Per-Game Category Rankings sorted by `Total` descending.
-  - Category Analysis sorted by `Score` descending.
-  - Cluster Leverage sorted by `Up Score` descending.
-- React query-state:
-  - `/analysis?team=<name>`
-  - `/games-played?start=<date>&end=<date>&total_games=<n>`
-- `refresh` triggers `src/fba/scraper.py` via subprocess.
-- If saved session is missing, refresh launches Yahoo login flow.
+- Default mode is `FBA_UI_MODE=react`.
+- `react` and `auto` require `frontend/dist/index.html`.
+- `legacy` serves templates and reads disk-backed config/data.
+- `POST /refresh` requires an authenticated user and uses session-held Yahoo tokens.
+- React-mode refreshed standings are stored in `_standings_cache`, keyed by `league_id`.
+- `normalize.py` ranking direction is `N = best`, `1 = worst`.
 
-## Regression and test status
+## Disk Files Still Used
 
-- `./venv/bin/pytest -q` returns `135 passed`.
-- Coverage includes parity verification between legacy routes and API/React payloads:
-  - `tests/test_calculation_regression_parity.py`
+- `data/config.json`: legacy-only config fallback
+- `data/standings.json`: legacy template data source and scraper output
+- `data/oauth2.json`: optional file-based Yahoo OAuth credentials
+- `data/browser_state.json`: optional Playwright login state
+
+## Verification Snapshot
+
+Executed on March 1, 2026:
+
+- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
+- Result: `120 passed`
+
+Attempted on March 1, 2026:
+
+- `./venv/bin/pytest -q`
+- Result: collection failed because the checked-in `venv` is missing backend dependencies, including `python-dotenv` and `flask-login`

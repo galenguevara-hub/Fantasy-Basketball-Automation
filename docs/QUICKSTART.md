@@ -1,18 +1,35 @@
 # Quick Start
 
-## 1) Install
+## 1) Install Dependencies
 
 ```bash
 cd "/Users/galen/projects/Fantasy Basketball Automation"
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-playwright install chromium
 npm --prefix frontend install
+cp .env.example .env
+```
+
+Set these in `.env` before using live Yahoo refresh:
+
+- `YAHOO_CLIENT_ID`
+- `YAHOO_CLIENT_SECRET`
+
+Recommended for anything beyond throwaway local use:
+
+- `SECRET_KEY`
+- `TOKEN_ENCRYPTION_KEY`
+
+## 2) Build The React UI
+
+Default app mode is `react`, so build the frontend before starting Flask:
+
+```bash
 npm --prefix frontend run build
 ```
 
-## 2) Start the App
+## 3) Start The App
 
 ```bash
 ./scripts/start_server.sh
@@ -20,84 +37,68 @@ npm --prefix frontend run build
 
 Open `http://localhost:8080`.
 
-To run the original mainline templates:
+## 4) Connect Your League
 
-```bash
-FBA_UI_MODE=legacy ./scripts/start_server.sh
-```
+1. Enter your Yahoo league ID.
+2. Click `Connect`.
+3. If you are not signed in yet, the app redirects you to Yahoo via `/auth/yahoo`.
+4. Complete Yahoo OAuth and return to the app.
+5. The app fetches standings through the Yahoo Fantasy API and stores them in memory for the current session.
 
-## 2b) React Frontend Dev Mode (Optional)
+If Yahoo shows a code instead of redirecting cleanly, use the manual fallback endpoint handled by `POST /auth/code`.
+
+## 5) React Development Mode (Optional)
+
+Run Flask and Vite together:
 
 ```bash
 ./scripts/start_dev.sh
 ```
 
 This starts:
+
 - React app: `http://localhost:5173`
 - Flask API: `http://localhost:8080`
 
-## 2c) Serve React Build From Flask
+In the current Vite config, only `/api` and `/refresh` are proxied. For Yahoo login/logout during development, use the Flask-served app at `http://localhost:8080` or add proxy rules for `/auth` and `/logout`.
+
+## 6) Legacy / Manual Flows (Optional)
+
+Serve the older Jinja templates instead of React:
 
 ```bash
-cd frontend
-npm run build
-cd ..
-./scripts/start_server.sh
-```
-
-By default (`FBA_UI_MODE=react`), Flask serves React at `/`, `/analysis`, and `/games-played`.
-
-## 2d) Select UI Mode (Optional)
-
-```bash
-# Force React routes (errors with 503 if build is missing)
-FBA_UI_MODE=react ./scripts/start_server.sh
-
-# Force legacy Jinja templates
 FBA_UI_MODE=legacy ./scripts/start_server.sh
 ```
 
-`FBA_UI_MODE=auto` is supported as a compatibility alias and behaves like `react`.
-
-## React UI Defaults
-
-- `/` Per-Game Category Rankings defaults to `Total` descending.
-- `/analysis` Category Analysis defaults to `Score` descending.
-- `/analysis` Cluster Leverage defaults to `Up Score` descending.
-- `/analysis` team selection is reflected in `?team=...`.
-- `/games-played` filter state is reflected in `?start=...&end=...&total_games=...`.
-
-## 3) Connect a League
-
-1. Enter Yahoo league ID in the top input.
-2. Click `Connect`.
-3. If session is missing, a browser opens for Yahoo login.
-4. After login, standings are scraped automatically.
-
-## Common Commands
+Use the file-based Yahoo OAuth helper:
 
 ```bash
-# Start app
-./scripts/start_server.sh
-
-# Scrape with login window (first time or re-auth)
-PYTHONPATH=src python src/fba/scraper.py --login --league-id <LEAGUE_ID>
-
-# Scrape headless with saved session
-PYTHONPATH=src python src/fba/scraper.py --league-id <LEAGUE_ID>
-
-# Run manual script checks
-PYTHONPATH=src python scripts/run_tests_manual.py
-
-# Run pytest
-./venv/bin/pytest -q
-
-# Run calculation parity regression checks only
-./venv/bin/pytest -q tests/test_calculation_regression_parity.py
+PYTHONPATH=src ./venv/bin/python -m fba.oauth_setup --check
 ```
 
-## Files You Will See Updated
+Use the Playwright scraper (not part of `POST /refresh`):
 
-- `data/config.json` stores `league_id`
-- `data/browser_state.json` stores Playwright session
-- `data/standings.json` stores latest scraped standings
+```bash
+./venv/bin/pip install playwright
+./venv/bin/playwright install chromium
+PYTHONPATH=src ./venv/bin/python src/fba/scraper.py --login --league-id <LEAGUE_ID>
+```
+
+The scraper writes `data/standings.json` and `data/browser_state.json`.
+
+## 7) Verification
+
+Verified on March 1, 2026:
+
+```bash
+./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py
+```
+
+Result: `120 passed`
+
+If `./venv/bin/pytest -q` fails during collection, reinstall backend dependencies inside `venv`:
+
+```bash
+source venv/bin/activate
+pip install -r requirements.txt
+```

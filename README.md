@@ -1,117 +1,84 @@
 # Fantasy Basketball Automation
 
-Local Yahoo Fantasy Basketball standings dashboard with scraping, per-game normalization, category target analysis, cluster leverage analysis, and games-played pace analysis. Includes legacy Flask templates and a React frontend (`frontend/`) backed by JSON APIs.
+Yahoo Fantasy Basketball analysis app with a Flask backend, a React frontend, Yahoo OAuth login, direct Yahoo Fantasy API refreshes, and three analysis layers:
 
-## Current Status
+- per-game normalization and roto re-ranking
+- category target scoring
+- cluster leverage and games-played pace analysis
 
-- Main app: `src/fba/app.py` (Flask, port `8080`)
-- Frontend build serving: controlled by `FBA_UI_MODE` (`react`, `legacy`, `auto`; default `react`)
-- Scraper: `src/fba/scraper.py` (Playwright + BeautifulSoup)
-- Analysis engine:
-  - `src/fba/analysis/category_targets.py`
-  - `src/fba/analysis/cluster_leverage.py`
-  - `src/fba/analysis/games_played.py`
-- Runtime data: `data/standings.json`, `data/browser_state.json`, `data/config.json`
-- Optional legacy module: `src/fba/webhook_server.py` (references old scripts that are not present)
+## What `main` Runs Today
 
-## Project Layout
+- `src/fba/app.py`: Flask app on `http://localhost:8080`
+- `frontend/`: React + Vite UI, served from `frontend/dist` in default mode
+- `src/fba/auth.py`: Yahoo OAuth flow, encrypted token handling, Flask-Login session state
+- `src/fba/yahoo_api.py`: direct Yahoo Fantasy API fetches used by `POST /refresh`
+- `src/fba/analysis/*.py`: category targets, cluster leverage, and games-played calculations
 
-```text
-Fantasy Basketball Automation/
-├── src/fba/
-│   ├── app.py
-│   ├── scraper.py
-│   ├── normalize.py
-│   ├── analysis/category_targets.py
-│   ├── webhook_server.py
-│   ├── templates/
-│   │   ├── index.html
-│   │   ├── analysis.html
-│   │   ├── games_played.html
-│   │   └── _analysis_key.html
-│   └── static/
-│       ├── app.js
-│       └── style.css
-├── scripts/
-│   ├── start_server.sh
-│   ├── start_dev.sh
-│   └── run_tests_manual.py
-├── frontend/
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── src/
-│       ├── App.tsx
-│       ├── pages/
-│       └── lib/
-├── tests/
-│   ├── test_normalize.py
-│   ├── test_category_targets.py
-│   ├── test_cluster_leverage.py
-│   ├── test_games_played.py
-│   ├── test_app_api.py
-│   └── test_calculation_regression_parity.py
-├── data/
-│   ├── standings.json
-│   ├── standings.csv
-│   ├── browser_state.json
-│   └── config.json
-├── config/
-│   ├── oauth2.json
-│   └── google_credentials.json
-├── docs/
-├── requirements.txt
-├── oauth2.json.example
-└── google_credentials.json.example
-```
+Legacy/manual utilities still exist, but they are not the default web flow:
 
-## Quick Start
+- `src/fba/scraper.py`: Playwright scraper that writes `data/standings.json`
+- `src/fba/oauth_setup.py`: file-based OAuth bootstrap for `data/oauth2.json`
+- `src/fba/webhook_server.py`: older webhook service that references scripts not present in this repo
+
+## Setup
 
 ```bash
 cd "/Users/galen/projects/Fantasy Basketball Automation"
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-playwright install chromium
 npm --prefix frontend install
+cp .env.example .env
 npm --prefix frontend run build
+```
+
+Populate `.env` before using live refresh:
+
+- `YAHOO_CLIENT_ID`
+- `YAHOO_CLIENT_SECRET`
+- `SECRET_KEY` (recommended outside local dev)
+- `TOKEN_ENCRYPTION_KEY` (recommended outside local dev)
+
+`YAHOO_REDIRECT_URI` defaults to `http://localhost:8080/auth/yahoo/callback`.
+
+## Run The App
+
+Production-style local run (Flask serves the built React app):
+
+```bash
 ./scripts/start_server.sh
 ```
 
-Open `http://localhost:8080`.
-
-## React Frontend Development
+Frontend development (Flask API + Vite dev server together):
 
 ```bash
-cd "/Users/galen/projects/Fantasy Basketball Automation/frontend"
-npm install
-npm run dev
-```
-
-Vite runs on `http://localhost:5173` and proxies API requests to Flask on `http://localhost:8080`.
-
-To run both backend and frontend together:
-
-```bash
-cd "/Users/galen/projects/Fantasy Basketball Automation"
 ./scripts/start_dev.sh
 ```
 
-To build and serve React from Flask:
+- Flask API: `http://localhost:8080`
+- Vite UI: `http://localhost:5173`
 
-```bash
-cd "/Users/galen/projects/Fantasy Basketball Automation/frontend"
-npm run build
-cd ..
-./scripts/start_server.sh
-```
+Current `vite.config.ts` only proxies `/api` and `/refresh`. If you need the Yahoo login or logout flow during frontend dev, use the Flask-served app on `:8080` or add proxy rules for `/auth` and `/logout`.
 
-### UI Mode Switch
+## First-Time League Connection
+
+1. Open `http://localhost:8080`.
+2. Enter your Yahoo league ID.
+3. Click `Connect`.
+4. If you are not authenticated, the UI redirects to `/auth/yahoo`.
+5. Complete Yahoo OAuth in the browser.
+6. The callback stores encrypted Yahoo tokens in the Flask session cookie and returns to the app.
+7. The app refreshes standings through the Yahoo Fantasy API and caches them in memory for that league.
+
+There is also a manual fallback endpoint, `POST /auth/code`, for cases where Yahoo shows an authorization code instead of completing the redirect.
+
+## UI Modes
 
 Set `FBA_UI_MODE` before starting Flask:
 
-- `react` (default): always serve React routes; returns `503` if build artifacts are missing.
-- `legacy`: compatibility mode that serves Jinja templates.
-- `auto`: compatibility alias for `react` (no legacy fallback).
+- `react` (default): serves the React build for `/`, `/analysis`, and `/games-played`; returns `503` if `frontend/dist/index.html` is missing
+- `legacy`: serves the older Jinja templates and reads from disk-backed files
+- `auto`: accepted for backward compatibility and treated the same as `react`
 
 Examples:
 
@@ -120,77 +87,88 @@ FBA_UI_MODE=react ./scripts/start_server.sh
 FBA_UI_MODE=legacy ./scripts/start_server.sh
 ```
 
-## First-Time League Setup
+## Routes
 
-1. Open `http://localhost:8080`.
-2. Enter your Yahoo league ID and click `Connect`.
-3. If no session exists, a visible browser opens for Yahoo login.
-4. After login, session is saved to `data/browser_state.json` and standings are saved to `data/standings.json`.
+HTML routes:
 
-## Endpoints
+- `GET /`
+- `GET /analysis`
+- `GET /games-played`
 
-- `GET /` Standings dashboard
-- `GET /analysis` Category Targets page
-- `GET /games-played` Games played pace page
-- `POST /refresh` Run scraper for configured league ID
-- `GET /api/standings` Raw standings JSON
-- `GET /api/config` Current config (`league_id`, `has_session`)
-- `POST /api/config` Set `league_id`
-- `GET /api/overview` React-ready standings payload
-- `GET /api/analysis` React-ready category analysis payload (`team` query optional)
-- `GET /api/games-played` React-ready games played payload (`start`, `end`, `total_games` query optional)
-- `GET /assets/<file>` React build assets when `frontend/dist` exists
+Auth routes:
 
-## Core Behavior Notes
+- `GET /auth/yahoo`
+- `GET /auth/yahoo/callback`
+- `POST /auth/code`
+- `POST /logout`
+- `GET /api/auth/status`
 
-- `normalize.py` ranks categories as `N = best` and `1 = worst`.
-- `/analysis` computes per-category gap-to-gain, buffer-to-lose, target score, plus `TARGET` and `DEFEND` tags.
-- `/analysis` also computes cluster leverage metrics (`Up Score`, `Dn Risk`) via `cluster_leverage.py`.
-- `/games-played` computes pace metrics from date window + total games via `games_played.py`.
-- React defaults:
-  - Per-Game Category Rankings table: sorted by `Total` descending.
-  - Category Analysis table: sorted by `Score` descending.
-  - Cluster Leverage table: sorted by `Up Score` descending.
-- React URL state:
-  - Selected analysis team is tracked with `?team=<TEAM_NAME>`.
-  - Games-played filters are tracked with `?start=YYYY-MM-DD&end=YYYY-MM-DD&total_games=<N>`.
-- `webhook_server.py` is not wired into the main app flow.
+Data routes:
+
+- `GET /api/config`
+- `POST /api/config`
+- `GET /api/overview`
+- `GET /api/analysis`
+- `GET /api/games-played`
+- `POST /refresh`
+- `GET /api/standings`
+- `GET /assets/<file>`
+
+## Data And Persistence
+
+React mode is session-driven:
+
+- `session["league_id"]` stores the active league ID
+- `session["yahoo_tokens"]` stores encrypted OAuth tokens
+- `_standings_cache[league_id]` keeps the latest fetched standings in memory
+
+That means `POST /refresh` does not automatically write `data/standings.json`.
+
+Disk-backed files are still used by legacy/manual paths:
+
+- `data/config.json`: legacy template config fallback
+- `data/standings.json`: legacy template data source and scraper output
+- `data/oauth2.json`: file-based Yahoo OAuth used by `src/fba/oauth_setup.py` / `src/fba/yahoo_api.py`
+- `data/browser_state.json`: Playwright session file used only by `src/fba/scraper.py`
 
 ## Useful Commands
 
 ```bash
-# Start app (React mode, default)
+# Start the default app flow
 ./scripts/start_server.sh
 
-# Start app with legacy templates fallback
-FBA_UI_MODE=legacy ./scripts/start_server.sh
+# Start backend + Vite dev server
+./scripts/start_dev.sh
 
-# Manual login + scrape
-PYTHONPATH=src python src/fba/scraper.py --login --league-id <LEAGUE_ID>
+# Rebuild the React bundle served by Flask
+npm --prefix frontend run build
 
-# Headless scrape using saved session
-PYTHONPATH=src python src/fba/scraper.py --league-id <LEAGUE_ID>
+# Check file-based Yahoo OAuth status (legacy/manual flow)
+PYTHONPATH=src ./venv/bin/python -m fba.oauth_setup --check
 
-# Manual checks
-PYTHONPATH=src python scripts/run_tests_manual.py
+# Run the legacy Playwright scraper (optional)
+./venv/bin/pip install playwright
+./venv/bin/playwright install chromium
+PYTHONPATH=src ./venv/bin/python src/fba/scraper.py --login --league-id <LEAGUE_ID>
 
-# Automated tests
-./venv/bin/pytest -q
-
-# React frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
+# Run the pure calculation tests
+./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py
 ```
 
-## Test Status (Current)
+## Verification Snapshot
 
-As of February 27, 2026, `./venv/bin/pytest -q` returns `135 passed`.
-This includes `tests/test_calculation_regression_parity.py`, which validates legacy-route payloads and React/API payloads produce matching calculated values.
+Verified on March 1, 2026:
 
-## Documentation
+- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
+- Result: `120 passed`
 
-- Quick setup: `docs/QUICKSTART.md`
-- Architecture and flow: `docs/ARCHITECTURE.md`
-- Documentation index: `docs/DOCS.md`
-- Change log: `docs/CHANGELOG.md`
+The full suite command, `./venv/bin/pytest -q`, currently fails in the checked-in `venv` during collection because required packages such as `python-dotenv` and `flask-login` are not installed there. Re-run `pip install -r requirements.txt` inside `venv` before expecting the full app/API tests to pass.
+
+## Docs
+
+- `docs/QUICKSTART.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DOCS.md`
+- `docs/CHANGELOG.md`
+- `docs/IMPLEMENTATION_SUMMARY.md`
+- `frontend/README.md`

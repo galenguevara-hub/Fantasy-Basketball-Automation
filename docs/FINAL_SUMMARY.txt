@@ -1,9 +1,9 @@
 FINAL DOCUMENTATION SUMMARY
-Date: February 22, 2026
+Date: March 1, 2026
 
 Completed
-- Updated all main project documentation files to match current code and structure.
-- Kept all edits limited to README/documentation files only.
+- Updated the root README, frontend README, and all tracked docs under `docs/` to match the current `main` branch behavior.
+- Kept all edits limited to documentation files only.
 
 Files Updated
 - README.md
@@ -15,14 +15,18 @@ Files Updated
 - docs/FEATURE_VERIFICATION.txt
 - docs/FINAL_SUMMARY.txt
 - docs/UPDATES_SUMMARY.txt
+- frontend/README.md
 
-What Changed
-- Commands updated to current paths in src/fba and scripts.
-- Endpoint list synchronized with src/fba/app.py.
-- Data file locations synchronized to data/.
-- Rank behavior documentation corrected to current normalize.py implementation.
-- Legacy status of src/fba/webhook_server.py explicitly called out.
-- Added current automated test snapshot from executed pytest run.
+Main Corrections
+- Replaced the old scraper-first description with the current Yahoo OAuth + direct API refresh flow.
+- Clarified that React mode stores standings in memory and does not automatically write `data/standings.json`.
+- Clarified that Playwright and `data/browser_state.json` belong only to the optional scraper path.
+- Expanded the documented route list to include auth endpoints.
+- Updated verification notes to reflect the current local test reality.
 
-Out-of-Scope (No Code Changes)
-- No changes made to Python, JS, HTML, or shell code files.
+Verification
+- Pure calculation tests executed successfully: 120 passed
+- Full suite attempt showed the checked-in `venv` is missing backend packages required for app/API test collection
+
+Out Of Scope
+- No Python, TypeScript, shell, HTML, or CSS files were changed.

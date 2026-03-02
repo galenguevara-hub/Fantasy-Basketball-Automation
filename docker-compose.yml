@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SECRET_KEY=local-docker-secret-change-me
+      - REDIS_URL=redis://redis:6379/0
+      - YAHOO_CLIENT_ID=${YAHOO_CLIENT_ID}
+      - YAHOO_CLIENT_SECRET=${YAHOO_CLIENT_SECRET}
+      - YAHOO_REDIRECT_URI=http://localhost:8080/auth/yahoo/callback
+      - FBA_UI_MODE=react
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:

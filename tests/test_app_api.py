@@ -5,6 +5,10 @@ import pytest
 
 from fba import app as app_module
 
+# Module-level store for injecting standings data in tests.
+# Monkeypatched into _get_standings so tests don't require Redis or a real user session.
+_test_standings: dict = {}
+
 
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -24,8 +28,10 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     app_module.app.config["TESTING"] = True
     app_module.app.config["LOGIN_DISABLED"] = True
 
-    # Clear in-memory cache between tests
-    app_module._standings_cache.clear()
+    # Reset test standings store and patch _get_standings to use it directly,
+    # bypassing Redis and current_user authentication checks.
+    _test_standings.clear()
+    monkeypatch.setattr(app_module, "_get_standings", lambda lid: _test_standings.get(lid))
 
     test_client = app_module.app.test_client()
 
@@ -37,9 +43,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def _load_sample_standings_to_cache():
-    """Load sample standings into the in-memory cache for league '12345'."""
-    payload = _sample_standings_payload()
-    app_module._standings_cache["12345"] = payload
+    """Load sample standings into the test store for league '12345'."""
+    _test_standings["12345"] = _sample_standings_payload()
 
 
 def _sample_standings_payload():

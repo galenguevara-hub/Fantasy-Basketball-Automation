@@ -9,7 +9,7 @@ Use /refresh (POST) to trigger a fresh data pull via the Yahoo Fantasy API.
 import json
 import logging
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -18,6 +18,8 @@ load_dotenv(override=True)
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, session
 from flask_login import current_user, login_required
+from flask_session import Session
+from redis import Redis
 
 from fba.analysis.category_targets import compute_gaps_and_scores
 from fba.analysis.cluster_leverage import compute_cluster_metrics
@@ -50,6 +52,18 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = Config.SECRET_KEY
 
+# Redis-backed sessions (only when REDIS_URL is configured)
+_redis_client: "Redis | None" = None
+if Config.REDIS_URL:
+    _redis_client = Redis.from_url(Config.REDIS_URL)
+    app.config["SESSION_TYPE"] = "redis"
+    app.config["SESSION_REDIS"] = _redis_client
+    app.config["SESSION_KEY_PREFIX"] = "fba:session:"
+    app.config["SESSION_PERMANENT"] = True
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+    app.config["SESSION_SERIALIZATION_FORMAT"] = "json"
+    Session(app)
+
 # Initialize Flask-Login (return 401 JSON for unauthorized API requests)
 login_manager.init_app(app)
 
@@ -69,9 +83,31 @@ UI_MODE_ENV = "FBA_UI_MODE"
 VALID_UI_MODES = {"auto", "react", "legacy"}
 
 # ---------------------------------------------------------------------------
-# In-memory standings cache (keyed by league_id, reset on server restart)
+# Redis-backed standings cache (per-user, keyed by user_id + league_id)
 # ---------------------------------------------------------------------------
-_standings_cache: dict[str, dict] = {}
+_STANDINGS_TTL = 3600  # 1 hour
+
+
+def _cache_get(user_id: str, league_id: str) -> "dict | None":
+    """Retrieve standings from Redis for this user+league. Returns None on miss or no Redis."""
+    if _redis_client is None or not league_id:
+        return None
+    try:
+        raw = _redis_client.get(f"fba:standings:{user_id}:{league_id}")
+        return json.loads(raw) if raw else None
+    except Exception as exc:
+        logger.warning("Redis cache read failed: %s", exc)
+        return None
+
+
+def _cache_set(user_id: str, league_id: str, data: dict) -> None:
+    """Write standings to Redis with TTL. Silently skips when Redis is unavailable."""
+    if _redis_client is None:
+        return
+    try:
+        _redis_client.setex(f"fba:standings:{user_id}:{league_id}", _STANDINGS_TTL, json.dumps(data))
+    except Exception as exc:
+        logger.warning("Redis cache write failed: %s", exc)
 
 
 def load_config() -> dict:
@@ -104,12 +140,15 @@ def load_standings() -> "dict | None":
 
 
 def _get_standings(league_id: str) -> "dict | None":
-    """Return standings for a league, checking the in-memory cache first.
+    """Return standings for the current user+league, checking Redis cache first.
 
-    Falls back to disk (standings.json) only in legacy UI mode.
+    Cache key is scoped per user_id so different users with the same league_id
+    see only their own cached data. Falls back to disk only in legacy UI mode.
     """
-    if league_id and league_id in _standings_cache:
-        return _standings_cache[league_id]
+    if league_id and current_user.is_authenticated:
+        cached = _cache_get(current_user.id, league_id)
+        if cached is not None:
+            return cached
     if _is_legacy_ui_mode():
         return load_standings()
     return None
@@ -609,8 +648,8 @@ def refresh():
         oauth = get_oauth_session_from_tokens(tokens["access_token"], tokens["refresh_token"])
         data = fetch_standings(league_id, oauth=oauth)
 
-        # Store in memory cache — serves all subsequent page loads for this league
-        _standings_cache[league_id] = data
+        # Store in Redis cache, scoped to this user+league
+        _cache_set(current_user.id, league_id, data)
         teams_count = len(data.get("teams", []))
 
         logger.info("API fetch complete — %d teams updated.", teams_count)

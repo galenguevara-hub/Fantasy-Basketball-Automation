@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+venv/
+.venv/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Data / secrets — never bake into image
+data/
+.env
+.env.*
+oauth2.json
+google_credentials.json
+yahoo_api_test/
+
+# Git / IDE
+.git/
+.gitignore
+.DS_Store
+*.swp
+*.swo
+
+# Tests — not needed in runtime image
+tests/
+conftest.py
+
+# Docs / scripts — not needed at runtime
+docs/
+scripts/
+*.md
+README*

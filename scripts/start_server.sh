@@ -7,19 +7,13 @@ cd "$(dirname "$0")/.."
 # Check if venv exists
 if [ ! -d "venv" ]; then
     echo "Virtual environment not found."
-    echo "Run: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && playwright install chromium"
+    echo "Run: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
     exit 1
 fi
 
 # Activate venv
 source venv/bin/activate
 
-# Warn if no saved Yahoo session exists
-if [ ! -f "data/browser_state.json" ]; then
-    echo "No Yahoo session found (data/browser_state.json missing)."
-    echo "Run this first: PYTHONPATH=src python src/fba/scraper.py --login"
-    echo ""
-fi
 
 RAW_UI_MODE="${FBA_UI_MODE:-react}"
 if [ "${RAW_UI_MODE}" = "legacy" ]; then

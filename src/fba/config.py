@@ -12,6 +12,7 @@ class Config:
     YAHOO_REDIRECT_URI = os.environ.get(
         "YAHOO_REDIRECT_URI", "http://localhost:8080/auth/yahoo/callback"
     )
+    REDIS_URL = os.environ.get("REDIS_URL", "")  # Empty = no Redis (local dev / tests)
 
     @classmethod
     def get_encryption_key(cls) -> bytes:

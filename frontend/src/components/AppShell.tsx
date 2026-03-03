@@ -95,7 +95,7 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
           </div>
 
           <div className="header-right">
-            {scrapedAt ? <div className="meta">Updated {scrapedAt}</div> : null}
+            {scrapedAt ? <div className="meta">Updated {new Date(scrapedAt).toLocaleString()}</div> : null}
             <LeagueControls
               leagueId={leagueId}
               loading={loading}

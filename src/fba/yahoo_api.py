@@ -11,7 +11,7 @@ import logging
 import os
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -293,7 +293,7 @@ def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
     teams.sort(key=lambda t: t["rank"])
 
     result = {
-        "scraped_at": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
+        "scraped_at": datetime.now(timezone.utc).isoformat(),
         "league": {"categories": [{"display_name": cat} for cat in categories]},
         "teams": teams,
     }

@@ -289,8 +289,8 @@ export function AnalysisPage() {
             />
           </section>
 
-          <aside className="analysis-key" aria-label="How to read this table">
-            <h4 className="analysis-key-title">How to read this</h4>
+          <details className="analysis-key">
+            <summary className="analysis-key-title">How to read this</summary>
             <ul className="analysis-key-list">
               <li>
                 <strong>z+ (Effort):</strong> Standard deviations you must improve to pass the next team — lower is easier
@@ -316,7 +316,7 @@ export function AnalysisPage() {
             <p className="analysis-key-example">
               Example: STL with z+ = 0.18 is a high-leverage target — a small improvement can gain a roto point.
             </p>
-          </aside>
+          </details>
 
           {analysisRows.length > 0 && Object.keys(data.team_cluster ?? {}).length > 0 ? (
             <section>
@@ -337,8 +337,8 @@ export function AnalysisPage() {
                 rows={clusterRows}
                 tableClassName="analysis-table cluster-table"
               />
-              <aside className="cluster-legend">
-                <h4 className="analysis-key-title">How to read this</h4>
+              <details className="cluster-legend">
+                <summary className="analysis-key-title">How to read this</summary>
                 <ul className="analysis-key-list">
                   <li>
                     <strong>σ (Sigma):</strong> Population std dev for this category — the natural unit of spread across all
@@ -378,7 +378,7 @@ export function AnalysisPage() {
                     <strong>High Cluster Down Risk</strong> = could lose multiple points if you slip — defend this category.
                   </span>
                 </div>
-              </aside>
+              </details>
             </section>
           ) : null}
 

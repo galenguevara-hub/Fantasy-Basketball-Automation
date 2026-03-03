@@ -439,7 +439,31 @@ td.col-total {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  margin: 0 0 10px;
+  margin: 0;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.analysis-key-title::-webkit-details-marker {
+  display: none;
+}
+
+.analysis-key-title::before {
+  content: "▸";
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+details[open] > .analysis-key-title::before {
+  content: "▾";
+}
+
+details[open] > .analysis-key-title {
+  margin-bottom: 10px;
 }
 
 .analysis-key-list {
@@ -484,6 +508,27 @@ td.col-total {
 .cluster-table td {
   padding: 9px 10px;
   font-size: 13px;
+}
+
+/* Sticky first column on analysis and cluster tables */
+.analysis-table th:first-child,
+.analysis-table td:first-child,
+.cluster-table th:first-child,
+.cluster-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.analysis-table tr:nth-child(even) td:first-child,
+.cluster-table tr:nth-child(even) td:first-child {
+  background: #fbfcff;
+}
+
+.analysis-table tbody tr:hover td:first-child,
+.cluster-table tbody tr:hover td:first-child {
+  background: #f3f7ff;
 }
 
 .tag-list {

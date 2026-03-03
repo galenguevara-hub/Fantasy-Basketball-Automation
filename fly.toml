@@ -1,6 +1,5 @@
 # fly.toml — Fantasy Basketball Automation SaaS
-# Replace fba-YOUR-APP-NAME with your actual Fly app name
-app = "fba-YOUR-APP-NAME"
+app = "fba-galen-app"
 primary_region = "ord"
 
 [build]

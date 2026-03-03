@@ -1,5 +1,5 @@
 # fly.toml — Fantasy Basketball Automation SaaS
-app = "fba-galen-app"
+app = "roto-fantasy-solver"
 primary_region = "ord"
 
 [build]

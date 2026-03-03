@@ -3,7 +3,15 @@
 Yahoo Fantasy Basketball analysis app with a Flask backend, a React frontend,
 Yahoo OAuth login, and direct Yahoo Fantasy API refreshes.
 
-## Supported App Path
+## Current State
+
+As of March 3, 2026, the latest local deployment work is present on:
+
+- `main`
+- `feat/saas-dev`
+
+Older branches such as `saas` and `deploy/railway` stop before the Docker and
+Fly.io deployment changes.
 
 The supported runtime path is:
 
@@ -13,11 +21,42 @@ The supported runtime path is:
 - `src/fba/normalize.py`
 - `src/fba/analysis/`
 - `frontend/`
+- `Dockerfile`
+- `docker-compose.yml`
+- `fly.toml`
 
-Archived one-off tooling, exploratory scripts, and deprecated flows now live in
-`legacy/`.
+Archived one-off tooling and deprecated flows live in `legacy/`.
 
-## Setup
+## What Changed Recently
+
+The latest deployment changes added:
+
+- multi-stage Docker build for the React frontend + Python backend
+- Gunicorn as the production process inside the container
+- Redis-backed server sessions when `REDIS_URL` is configured
+- Redis-backed per-user standings cache with a 1-hour TTL
+- `docker-compose.yml` for local container development with Redis
+- `fly.toml` for Fly.io deployment
+
+## Environment Variables
+
+Core app configuration:
+
+- `SECRET_KEY`
+- `YAHOO_CLIENT_ID`
+- `YAHOO_CLIENT_SECRET`
+- `YAHOO_REDIRECT_URI`
+- `TOKEN_ENCRYPTION_KEY` (recommended in production)
+
+Deployment-specific:
+
+- `REDIS_URL`
+  Required for production-style multi-instance deployments so sessions and the
+  standings cache live outside a single process.
+
+See `.env.example` for the current local template.
+
+## Local Setup (Non-Docker)
 
 ```bash
 cd "/Users/galen/projects/Fantasy Basketball Automation"
@@ -29,27 +68,23 @@ cp .env.example .env
 npm --prefix frontend run build
 ```
 
-Set these in `.env` before using live refresh:
+Important:
 
-- `YAHOO_CLIENT_ID`
-- `YAHOO_CLIENT_SECRET`
-- `SECRET_KEY`
+- for the current multi-user React refresh flow, you also need a reachable
+  Redis instance behind `REDIS_URL`, or you should use Docker Compose instead
+- without `REDIS_URL`, the app starts, but refreshed React-mode standings are
+  not persisted by the current code path
 
-Recommended outside throwaway local use:
-
-- `TOKEN_ENCRYPTION_KEY`
-
-`YAHOO_REDIRECT_URI` defaults to `http://localhost:8080/auth/yahoo/callback`.
-
-## Run
-
-Default local run:
+## Run Locally (Non-Docker)
 
 ```bash
 ./scripts/start_server.sh
 ```
 
-Frontend development:
+For a fully working local React refresh flow, pair this with a running Redis
+instance and `REDIS_URL`.
+
+For split frontend/backend development:
 
 ```bash
 ./scripts/start_dev.sh
@@ -61,107 +96,112 @@ Frontend development:
 `vite.config.ts` proxies `/api`, `/refresh`, `/auth`, and `/logout` to the
 Flask backend during frontend development.
 
-## First-Time League Connection
+## Run With Docker Compose
 
-1. Open `http://localhost:8080`.
-2. Enter your Yahoo league ID.
-3. Click `Connect`.
-4. If you are not authenticated, the UI redirects to `/auth/yahoo`.
-5. Complete Yahoo OAuth.
-6. The app refreshes standings through the Yahoo Fantasy API and caches them in
-   memory for the current session.
+The repo now includes `docker-compose.yml` for a production-like local stack:
 
-If Yahoo returns an authorization code instead of redirecting cleanly, use the
-manual fallback handled by `POST /auth/code`.
+- `app`: the Flask + React container built from `Dockerfile`
+- `redis`: Redis 7 used for sessions and cached standings
 
-## UI Modes
+Start it with:
 
-- `react` (default): serves the built React UI and returns `503` if the build
-  is missing
-- `legacy`: serves the older Jinja templates backed by disk files
-- `auto`: accepted for backward compatibility and treated as `react`
+```bash
+docker compose up --build
+```
 
-## Routes
+The app will be available at `http://localhost:8080`.
 
-HTML routes:
+Important compose defaults:
 
-- `GET /`
-- `GET /analysis`
-- `GET /games-played`
+- `YAHOO_REDIRECT_URI` is set to `http://localhost:8080/auth/yahoo/callback`
+- `REDIS_URL` is set to `redis://redis:6379/0`
+- `FBA_UI_MODE` is forced to `react`
 
-Auth routes:
+You must still provide `YAHOO_CLIENT_ID` and `YAHOO_CLIENT_SECRET` in your
+shell environment or `.env` file before starting compose.
 
-- `GET /auth/yahoo`
-- `GET /auth/yahoo/callback`
-- `POST /auth/code`
-- `POST /logout`
-- `GET /api/auth/status`
+## Docker Image Notes
 
-Data routes:
+`Dockerfile` now builds in two stages:
 
-- `GET /api/config`
-- `POST /api/config`
-- `GET /api/overview`
-- `GET /api/analysis`
-- `GET /api/games-played`
-- `POST /refresh`
-- `GET /api/standings`
-- `GET /assets/<file>`
+1. `node:20-alpine` builds the React frontend
+2. `python:3.11-slim` runs the Flask app with Gunicorn
 
-## Data And Persistence
+Runtime behavior:
+
+- runs as a non-root `fba` user
+- exposes port `8080`
+- starts Gunicorn with 2 workers
+- uses a 120-second timeout to tolerate slow Yahoo API calls
+
+`.dockerignore` excludes `data/`, local secrets, tests, docs, scripts, and git
+metadata from the runtime image.
+
+## Fly.io Deployment
+
+The repo now includes `fly.toml` for Fly.io.
+
+Current Fly config:
+
+- app name: `roto-fantasy-solver`
+- primary region: `ord`
+- internal port: `8080`
+- VM size: `shared-cpu-1x`
+- memory: `256mb`
+- auto stop/start enabled
+- health check path: `/api/auth/status`
+
+Before deploying, provision a Redis instance and set the required secrets:
+
+- `SECRET_KEY`
+- `YAHOO_CLIENT_ID`
+- `YAHOO_CLIENT_SECRET`
+- `YAHOO_REDIRECT_URI`
+- `TOKEN_ENCRYPTION_KEY`
+- `REDIS_URL`
+
+Then deploy with the Fly CLI using the checked-in `fly.toml`.
+
+## App Behavior
 
 React mode is session-driven:
 
 - `session["league_id"]` stores the active league ID
 - `session["yahoo_tokens"]` stores encrypted Yahoo tokens
-- `_standings_cache[league_id]` stores refreshed standings in memory
 
-That means `POST /refresh` does not write `data/standings.json`.
+When `REDIS_URL` is configured:
+
+- Flask-Session stores sessions in Redis
+- standings are cached in Redis per user + league
+- this is the intended runtime path for Docker and Fly.io
+
+When `REDIS_URL` is not configured:
+
+- the app falls back to cookie-based sessions
+- but the current React refresh flow does not persist fresh standings because
+  cache writes are Redis-only
 
 Legacy template mode still reads:
 
 - `data/config.json`
 - `data/standings.json`
 
-## Archived Material
-
-Deprecated utilities and exploratory files have been moved to `legacy/`,
-including:
-
-- old Playwright scraping helpers
-- old file-based OAuth bootstrap helpers
-- the removed Google Sheets webhook flow
-- exploratory Yahoo API scripts
-- the old manual test runner
-
-Nothing under `legacy/` is required for the current app.
-
-## Useful Commands
-
-```bash
-# Start the supported app flow
-./scripts/start_server.sh
-
-# Start backend + Vite dev server
-./scripts/start_dev.sh
-
-# Rebuild the React bundle served by Flask
-npm --prefix frontend run build
-
-# Run the maintained calculation tests
-./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py
-```
-
 ## Verification Snapshot
 
-Verified on March 1, 2026:
+Verified on March 3, 2026:
 
 - `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
 - Result: `120 passed`
+- `npm --prefix frontend run build`
+- Result: passed
 
-The full suite command, `./venv/bin/pytest -q`, still fails in the checked-in
-`venv` during collection because backend packages such as `python-dotenv` and
-`flask-login` are missing there.
+Still true on March 3, 2026:
+
+- `./venv/bin/pytest -q` fails during collection in the checked-in `venv`
+  because backend packages such as `python-dotenv` are not installed there
+
+I did not run a full container build or a live Fly deploy as part of this docs
+refresh.
 
 ## Docs
 

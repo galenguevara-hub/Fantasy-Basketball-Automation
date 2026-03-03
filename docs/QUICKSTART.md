@@ -1,6 +1,6 @@
 # Quick Start
 
-## 1) Install
+## 1) Local Install
 
 ```bash
 cd "/Users/galen/projects/Fantasy Basketball Automation"
@@ -11,11 +11,12 @@ npm --prefix frontend install
 cp .env.example .env
 ```
 
-Set in `.env`:
+Set at minimum:
 
+- `SECRET_KEY`
 - `YAHOO_CLIENT_ID`
 - `YAHOO_CLIENT_SECRET`
-- `SECRET_KEY`
+- `REDIS_URL` for the current multi-user React refresh flow
 
 Recommended:
 
@@ -27,7 +28,7 @@ Recommended:
 npm --prefix frontend run build
 ```
 
-## 3) Start The App
+## 3) Start The App (Local Shell)
 
 ```bash
 ./scripts/start_server.sh
@@ -35,14 +36,41 @@ npm --prefix frontend run build
 
 Open `http://localhost:8080`.
 
-## 4) Connect A League
+For the current React flow, this shell path expects a working Redis instance
+behind `REDIS_URL`. If you do not already have Redis running, use Docker
+Compose instead.
+
+## 4) Start The App (Docker Compose)
+
+For the new production-like local stack with Redis:
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- the app container on `http://localhost:8080`
+- Redis on `localhost:6379`
+
+Compose injects:
+
+- `REDIS_URL=redis://redis:6379/0`
+- `FBA_UI_MODE=react`
+- `YAHOO_REDIRECT_URI=http://localhost:8080/auth/yahoo/callback`
+
+You still need `YAHOO_CLIENT_ID` and `YAHOO_CLIENT_SECRET` in your environment.
+This is currently the simplest fully working local path because it wires Redis
+automatically.
+
+## 5) Connect A League
 
 1. Enter your Yahoo league ID.
 2. Click `Connect`.
 3. Complete Yahoo OAuth if prompted.
 4. The app refreshes standings through the Yahoo Fantasy API.
 
-## 5) Frontend Dev Mode
+## 6) Frontend Dev Mode
 
 ```bash
 ./scripts/start_dev.sh
@@ -53,13 +81,28 @@ Open `http://localhost:8080`.
 
 Vite proxies `/api`, `/refresh`, `/auth`, and `/logout` to the Flask backend.
 
-## 6) Verification
+## 7) Fly.io Deploy Checklist
+
+1. Keep `fly.toml` as the source of truth for the app definition.
+2. Provision Redis and capture its `REDIS_URL`.
+3. Set production secrets:
+   `SECRET_KEY`, `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`,
+   `YAHOO_REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY`, and `REDIS_URL`.
+4. Deploy with the Fly CLI using the checked-in `fly.toml`.
+
+## 8) Verification
+
+Verified on March 3, 2026:
 
 ```bash
 ./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py
+npm --prefix frontend run build
 ```
 
-Result on March 1, 2026: `120 passed`
+Results:
+
+- pytest subset: `120 passed`
+- frontend build: passed
 
 If `./venv/bin/pytest -q` fails during collection, reinstall backend
 dependencies inside `venv`:
@@ -69,7 +112,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 7) Legacy Tools
+## 9) Legacy Tools
 
 Deprecated tooling was moved to `legacy/`. It is not part of the supported app
-path.
+or deployment path.

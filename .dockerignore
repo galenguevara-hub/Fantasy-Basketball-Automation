@@ -17,7 +17,7 @@ data/
 .env.*
 oauth2.json
 google_credentials.json
-yahoo_api_test/
+legacy/
 
 # Git / IDE
 .git/

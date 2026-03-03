@@ -110,6 +110,56 @@ def _cache_set(user_id: str, league_id: str, data: dict) -> None:
         logger.warning("Redis cache write failed: %s", exc)
 
 
+# ---------------------------------------------------------------------------
+# Per-user refresh rate limiting
+# ---------------------------------------------------------------------------
+_REFRESH_COOLDOWN = 30  # seconds
+
+
+def _check_refresh_rate_limit(user_id: str) -> bool:
+    """Return True if the user is allowed to refresh (not in cooldown).
+
+    Sets a Redis key with TTL on first call; subsequent calls within the window
+    return False. Always returns True when Redis is unavailable.
+    """
+    if _redis_client is None:
+        return True
+    try:
+        key = f"fba:refresh_cooldown:{user_id}"
+        return bool(_redis_client.set(key, "1", ex=_REFRESH_COOLDOWN, nx=True))
+    except Exception as exc:
+        logger.warning("Redis rate-limit check failed: %s", exc)
+        return True  # fail open
+
+
+# ---------------------------------------------------------------------------
+# League ID long-term persistence (survives session expiry)
+# ---------------------------------------------------------------------------
+_LEAGUE_ID_TTL = 365 * 24 * 3600  # 1 year
+
+
+def _persist_league_id(user_id: str, league_id: str) -> None:
+    """Store a user's league ID in Redis long-term, keyed by user_id."""
+    if _redis_client is None:
+        return
+    try:
+        _redis_client.setex(f"fba:league_id:{user_id}", _LEAGUE_ID_TTL, league_id)
+    except Exception as exc:
+        logger.warning("Redis league_id persist failed: %s", exc)
+
+
+def _restore_league_id(user_id: str) -> str:
+    """Retrieve a user's persisted league ID from Redis. Returns '' on miss."""
+    if _redis_client is None:
+        return ""
+    try:
+        raw = _redis_client.get(f"fba:league_id:{user_id}")
+        return raw.decode() if raw else ""
+    except Exception as exc:
+        logger.warning("Redis league_id restore failed: %s", exc)
+        return ""
+
+
 def load_config() -> dict:
     """Load app config from disk."""
     if not CONFIG_FILE.exists():
@@ -517,6 +567,12 @@ def auth_yahoo_callback():
     yahoo_guid, display_name = fetch_yahoo_user_info(tokens["access_token"])
     store_user_session(yahoo_guid, display_name, tokens)
 
+    if not session.get("league_id"):
+        stored = _restore_league_id(yahoo_guid)
+        if stored:
+            session["league_id"] = stored
+            session.modified = True
+
     logger.info("User %s (%s) logged in via Yahoo OAuth.", display_name, yahoo_guid)
     return redirect("/")
 
@@ -539,6 +595,12 @@ def auth_manual_code():
 
     yahoo_guid, display_name = fetch_yahoo_user_info(tokens["access_token"])
     store_user_session(yahoo_guid, display_name, tokens)
+
+    if not session.get("league_id"):
+        stored = _restore_league_id(yahoo_guid)
+        if stored:
+            session["league_id"] = stored
+            session.modified = True
 
     logger.info("User %s (%s) logged in via manual code entry.", display_name, yahoo_guid)
     return jsonify({"status": "success", "user_name": display_name})
@@ -615,6 +677,9 @@ def set_config():
     session["league_id"] = league_id
     session.modified = True
 
+    if current_user.is_authenticated:
+        _persist_league_id(current_user.id, league_id)
+
     user_name = current_user.display_name if current_user.is_authenticated else "anonymous"
     logger.info("User %s set league ID to %s", user_name, league_id)
     return jsonify({"status": "success", "league_id": league_id})
@@ -628,6 +693,9 @@ def refresh():
 
     if not league_id:
         return jsonify({"status": "error", "error": "No league ID configured."}), 400
+
+    if not _check_refresh_rate_limit(current_user.id):
+        return jsonify({"status": "error", "error": "Please wait before refreshing again."}), 429
 
     tokens = get_valid_tokens()
     if not tokens:
@@ -677,15 +745,6 @@ def refresh():
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
-@app.route("/api/standings", methods=["GET"])
-def api_standings():
-    """Return the raw standings JSON."""
-    data = load_standings()
-    if data is None:
-        return jsonify({"error": "No standings data available. Run a refresh first."}), 404
-    return jsonify(data)
-
-
 @app.route("/assets/<path:filename>", methods=["GET"])
 def frontend_assets(filename: str):
     """Serve React build asset files."""
@@ -705,6 +764,5 @@ if __name__ == "__main__":
     logger.info("Fantasy Basketball Standings App")
     logger.info("=" * 60)
     logger.info(f"Open: http://localhost:{port}")
-    logger.info(f"API:  http://localhost:{port}/api/standings")
     logger.info("=" * 60)
     app.run(host="0.0.0.0", port=port, debug=False)

@@ -116,8 +116,8 @@ function analysisColumns(teamPgRank: Record<string, string>) {
 }
 
 const LEAGUE_COLUMNS = [
-  { key: "pg_rank", label: "PG Rank", align: "right" as const },
   { key: "team_name", label: "Team", align: "left" as const },
+  { key: "pg_rank", label: "PG Rank", align: "right" as const },
   {
     key: "rank_total",
     label: "PG Total",

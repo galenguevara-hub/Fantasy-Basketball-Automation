@@ -7,7 +7,11 @@ interface StatusPanelProps {
 
 export function StatusPanel({ loading, error, hasData, emptyMessage }: StatusPanelProps) {
   if (loading) {
-    return <div className="panel">Loading...</div>;
+    return (
+      <div className="loading-panel">
+        <div className="spinner" aria-label="Loading" role="status" />
+      </div>
+    );
   }
 
   if (error) {

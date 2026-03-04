@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from yahoo_oauth import OAuth2
 from yahoo_fantasy_api import Game
 
@@ -39,6 +41,24 @@ STAT_ID_MAP = {
 
 # The 8 roto scoring categories (higher is always better)
 ROTO_CATEGORIES = ["FG%", "FT%", "3PTM", "PTS", "REB", "AST", "ST", "BLK"]
+
+
+def _configure_session_retries(session) -> None:
+    """Mount a retry adapter on a requests.Session.
+
+    Retries up to 3 times on connection-level failures (including transient DNS
+    errors like EAI_AGAIN that occur on Fly.io cold-start machine wake-ups).
+    Backoff: 1s → 2s → 4s between attempts.
+    """
+    retry = Retry(
+        total=3,
+        connect=3,
+        backoff_factor=1,
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
 
 
 class YahooAPIError(Exception):
@@ -232,6 +252,7 @@ def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
     """
     if oauth is None:
         oauth = get_oauth_session()
+    _configure_session_retries(oauth.session)
     game = Game(oauth, "nba")
     game_id = game.game_id()
 

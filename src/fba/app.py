@@ -116,20 +116,25 @@ def _cache_set(user_id: str, league_id: str, data: dict) -> None:
 _REFRESH_COOLDOWN = 30  # seconds
 
 
-def _check_refresh_rate_limit(user_id: str) -> bool:
-    """Return True if the user is allowed to refresh (not in cooldown).
+def _check_refresh_rate_limit(user_id: str) -> int:
+    """Return 0 if the user may refresh now, or remaining cooldown seconds if rate-limited.
 
-    Sets a Redis key with TTL on first call; subsequent calls within the window
-    return False. Always returns True when Redis is unavailable.
+    Sets a Redis key with TTL on first call; returns its remaining TTL on
+    subsequent calls within the window. Returns 0 when Redis is unavailable
+    (fail open).
     """
     if _redis_client is None:
-        return True
+        return 0
     try:
         key = f"fba:refresh_cooldown:{user_id}"
-        return bool(_redis_client.set(key, "1", ex=_REFRESH_COOLDOWN, nx=True))
+        allowed = _redis_client.set(key, "1", ex=_REFRESH_COOLDOWN, nx=True)
+        if allowed:
+            return 0
+        ttl = _redis_client.ttl(key)
+        return max(int(ttl), 1)
     except Exception as exc:
         logger.warning("Redis rate-limit check failed: %s", exc)
-        return True  # fail open
+        return 0  # fail open
 
 
 # ---------------------------------------------------------------------------
@@ -694,8 +699,9 @@ def refresh():
     if not league_id:
         return jsonify({"status": "error", "error": "No league ID configured."}), 400
 
-    if not _check_refresh_rate_limit(current_user.id):
-        return jsonify({"status": "error", "error": "Please wait before refreshing again."}), 429
+    cooldown_secs = _check_refresh_rate_limit(current_user.id)
+    if cooldown_secs > 0:
+        return jsonify({"status": "error", "error": "Please wait before refreshing again.", "retry_after": cooldown_secs}), 429
 
     tokens = get_valid_tokens()
     if not tokens:

@@ -8,10 +8,12 @@ import type {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  retryAfter?: number;
+  constructor(status: number, message: string, retryAfter?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -26,15 +28,19 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`;
+    let retryAfter: number | undefined;
     try {
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as { error?: string; retry_after?: number };
       if (payload?.error) {
         detail = payload.error;
+      }
+      if (payload?.retry_after) {
+        retryAfter = payload.retry_after;
       }
     } catch {
       // ignore JSON parsing failures
     }
-    throw new ApiError(response.status, detail);
+    throw new ApiError(response.status, detail, retryAfter);
   }
 
   return (await response.json()) as T;

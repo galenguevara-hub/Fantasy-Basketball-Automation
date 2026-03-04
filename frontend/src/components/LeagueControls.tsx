@@ -24,11 +24,24 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const [cooldown, setCooldown] = useState<number | null>(null);
 
   useEffect(() => {
     setInput(leagueId);
     setFlow(leagueId ? "connected" : "input");
   }, [leagueId]);
+
+  // Tick the cooldown down by 1 every second until it reaches 0.
+  useEffect(() => {
+    if (cooldown === null || cooldown <= 0) {
+      if (cooldown !== null && cooldown <= 0) setCooldown(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setCooldown((prev) => (prev !== null && prev > 1 ? prev - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   function show(msg: string, error = false) {
     setMessage(msg);
@@ -36,6 +49,14 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
     window.setTimeout(() => {
       setMessage((current) => (current === msg ? null : current));
     }, error ? 5000 : 2500);
+  }
+
+  function handleRateLimitError(err: unknown) {
+    if (err instanceof ApiError && err.status === 429) {
+      setCooldown(err.retryAfter ?? 30);
+      return true;
+    }
+    return false;
   }
 
   async function runRefresh() {
@@ -67,6 +88,7 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
         window.location.href = "/auth/yahoo";
         return;
       }
+      if (handleRateLimitError(err)) return;
       const detail = err instanceof Error ? err.message : "Unable to connect league";
       show(detail, true);
     } finally {
@@ -84,6 +106,7 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
         window.location.href = "/auth/yahoo";
         return;
       }
+      if (handleRateLimitError(err)) return;
       const detail = err instanceof Error ? err.message : "Unable to refresh";
       show(detail, true);
     } finally {
@@ -91,7 +114,9 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
     }
   }
 
-  const disabled = busy || loading;
+  const disabled = busy || loading || cooldown !== null;
+  const toastMessage = cooldown !== null ? `Please wait ${cooldown}s to refresh again.` : message;
+  const toastError = cooldown !== null ? true : isError;
 
   // --- input: enter league ID ---
   if (flow === "input" || editing) {
@@ -116,7 +141,7 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
             </button>
           ) : null}
         </div>
-        {message ? <div className={isError ? "toast error" : "toast"}>{message}</div> : null}
+        {toastMessage ? <div className={toastError ? "toast error" : "toast"}>{toastMessage}</div> : null}
       </div>
     );
   }
@@ -133,7 +158,7 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
           {busy ? "Refreshing..." : "Refresh"}
         </button>
       </div>
-      {message ? <div className={isError ? "toast error" : "toast"}>{message}</div> : null}
+      {toastMessage ? <div className={toastError ? "toast error" : "toast"}>{toastMessage}</div> : null}
     </div>
   );
 }

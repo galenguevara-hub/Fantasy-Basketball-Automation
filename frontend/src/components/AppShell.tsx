@@ -96,20 +96,19 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
 
           <div className="header-right">
             {scrapedAt ? <div className="meta">Updated {new Date(scrapedAt).toLocaleString()}</div> : null}
-            <LeagueControls
-              leagueId={leagueId}
-              loading={loading}
-              onReload={onReload}
-              onAuthChange={refreshAuth}
-            />
-            {authenticated ? (
-              <div className="auth-bar">
-                <span className="meta">{userName}</span>
+            <div className="header-controls">
+              <LeagueControls
+                leagueId={leagueId}
+                loading={loading}
+                onReload={onReload}
+                onAuthChange={refreshAuth}
+              />
+              {authenticated ? (
                 <button className="ghost" onClick={() => void handleLogout()} type="button">
                   Logout
                 </button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
       </header>

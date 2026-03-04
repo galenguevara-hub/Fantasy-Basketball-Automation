@@ -8,8 +8,8 @@ import type { TeamRow } from "../lib/types";
 import { useAsyncData } from "../lib/useAsyncData";
 
 const OVERALL_COLUMNS = [
-  { key: "rank", label: "Rank", align: "right" as const },
   { key: "team_name", label: "Team", align: "left" as const },
+  { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const },
   { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
   { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
@@ -23,8 +23,8 @@ const OVERALL_COLUMNS = [
 ];
 
 const PER_GAME_COLUMNS = [
-  { key: "rank", label: "Rank", align: "right" as const },
   { key: "team_name", label: "Team", align: "left" as const },
+  { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const },
   { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
   { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
@@ -37,8 +37,8 @@ const PER_GAME_COLUMNS = [
 ];
 
 const OVERALL_STATS_COLUMNS = [
-  { key: "rank", label: "Rank", align: "right" as const },
   { key: "team_name", label: "Team", align: "left" as const },
+  { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
   { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
   { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
@@ -51,8 +51,8 @@ const OVERALL_STATS_COLUMNS = [
 ];
 
 const RANKING_COLUMNS = [
-  { key: "rank", label: "Rank", align: "right" as const },
   { key: "team_name", label: "Team", align: "left" as const },
+  { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const },
   { key: "FG%_Rank", label: "FG%", align: "right" as const },
   { key: "FT%_Rank", label: "FT%", align: "right" as const },

@@ -253,8 +253,14 @@ h2 {
 
 .gp-form {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gp-row {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -510,24 +516,20 @@ details[open] > .analysis-key-title {
   font-size: 13px;
 }
 
-/* Sticky first column on analysis and cluster tables */
-.analysis-table th:first-child,
-.analysis-table td:first-child,
-.cluster-table th:first-child,
-.cluster-table td:first-child {
+/* Sticky first column on all tables */
+.table-wrap th:first-child,
+.table-wrap td:first-child {
   position: sticky;
   left: 0;
   z-index: 2;
   background: var(--surface);
 }
 
-.analysis-table tr:nth-child(even) td:first-child,
-.cluster-table tr:nth-child(even) td:first-child {
+.table-wrap tr:nth-child(even) td:first-child {
   background: #fbfcff;
 }
 
-.analysis-table tbody tr:hover td:first-child,
-.cluster-table tbody tr:hover td:first-child {
+.table-wrap tbody tr:hover td:first-child {
   background: #f3f7ff;
 }
 
@@ -723,6 +725,14 @@ details[open] > .analysis-key-title {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+}
+
+/* Inline row: league controls + logout button */
+.header-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* Code entry hint (inline in LeagueControls) */

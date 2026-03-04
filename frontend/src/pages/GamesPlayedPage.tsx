@@ -8,8 +8,8 @@ import { formatFixed, toNumber } from "../lib/format";
 import { useAsyncData } from "../lib/useAsyncData";
 
 const GAMES_COLUMNS = [
-  { key: "rank", label: "Rank", align: "right" as const },
   { key: "team_name", label: "Team", align: "left" as const },
+  { key: "rank", label: "Rank", align: "right" as const },
   { key: "gp", label: "GP", align: "right" as const },
   { key: "rank_total", label: "PG Total", align: "right" as const },
   { key: "avg_gp_per_day_so_far", label: "GP/Day So Far", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
@@ -93,33 +93,34 @@ export function GamesPlayedPage() {
           <section>
             <h2>Season Window</h2>
             <form className="gp-form" onSubmit={onSubmit}>
-              <label htmlFor="start">Season start:</label>
-              <input
-                id="start"
-                onChange={(event) => setForm((prev) => ({ ...prev, start: event.target.value }))}
-                type="date"
-                value={form.start}
-              />
-
-              <label htmlFor="end">end:</label>
-              <input
-                id="end"
-                onChange={(event) => setForm((prev) => ({ ...prev, end: event.target.value }))}
-                type="date"
-                value={form.end}
-              />
-
-              <label htmlFor="total-games">Total annual games:</label>
-              <input
-                className="gp-total-input"
-                id="total-games"
-                min={1}
-                onChange={(event) => setForm((prev) => ({ ...prev, totalGames: event.target.value }))}
-                type="number"
-                value={form.totalGames}
-              />
-
-              <button type="submit">Update</button>
+              <div className="gp-row">
+                <label htmlFor="start">Start</label>
+                <input
+                  id="start"
+                  onChange={(event) => setForm((prev) => ({ ...prev, start: event.target.value }))}
+                  type="date"
+                  value={form.start}
+                />
+                <label htmlFor="end">End</label>
+                <input
+                  id="end"
+                  onChange={(event) => setForm((prev) => ({ ...prev, end: event.target.value }))}
+                  type="date"
+                  value={form.end}
+                />
+              </div>
+              <div className="gp-row">
+                <label htmlFor="total-games">Total games</label>
+                <input
+                  className="gp-total-input"
+                  id="total-games"
+                  min={1}
+                  onChange={(event) => setForm((prev) => ({ ...prev, totalGames: event.target.value }))}
+                  type="number"
+                  value={form.totalGames}
+                />
+                <button type="submit">Update</button>
+              </div>
             </form>
 
             {data.date_error ? <p className="panel error">{data.date_error}</p> : null}

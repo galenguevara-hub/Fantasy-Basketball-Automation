@@ -242,6 +242,7 @@ export function AnalysisPage() {
                     .map((row) => (
                       <span key={`target-${row.category}`} className="summary-item">
                         <strong>{row.display.replace("/G", "")}</strong>
+                        <span className="summary-label">L1</span>
                         {row.z_gap_up !== null ? (
                           <span className="summary-val">({formatFixed(row.z_gap_up, 2)})</span>
                         ) : null}
@@ -249,25 +250,23 @@ export function AnalysisPage() {
                     ))}
                 </div>
                 {clusterTargetRows.length > 0 ? (
-                  <>
-                    <div className="summary-sub-label">Cluster</div>
-                    <div className="summary-items">
-                      {[...clusterTargetRows]
-                        .sort(
-                          (a, b) =>
-                            (typeof b.cluster_up_score === "number" ? b.cluster_up_score : 0) -
-                            (typeof a.cluster_up_score === "number" ? a.cluster_up_score : 0)
-                        )
-                        .map((row) => (
-                          <span key={`ct-${String(row.category)}`} className="summary-item">
-                            <strong>{String(row.display).replace("/G", "")}</strong>
-                            {row.cluster_up_score != null ? (
-                              <span className="summary-val">({formatFixed(row.cluster_up_score, 2)})</span>
-                            ) : null}
-                          </span>
-                        ))}
-                    </div>
-                  </>
+                  <div className="summary-items">
+                    {[...clusterTargetRows]
+                      .sort(
+                        (a, b) =>
+                          (typeof b.cluster_up_score === "number" ? b.cluster_up_score : 0) -
+                          (typeof a.cluster_up_score === "number" ? a.cluster_up_score : 0)
+                      )
+                      .map((row) => (
+                        <span key={`ct-${String(row.category)}`} className="summary-item">
+                          <strong>{String(row.display).replace("/G", "")}</strong>
+                          <span className="summary-label">Cluster</span>
+                          {row.cluster_up_score != null ? (
+                            <span className="summary-val">({formatFixed(row.cluster_up_score, 2)})</span>
+                          ) : null}
+                        </span>
+                      ))}
+                  </div>
                 ) : null}
               </div>
               <div className="summary-group summary-defend">
@@ -278,6 +277,7 @@ export function AnalysisPage() {
                     .map((row) => (
                       <span key={`defend-${row.category}`} className="summary-item">
                         <strong>{row.display.replace("/G", "")}</strong>
+                        <span className="summary-label">L1</span>
                         {row.z_gap_down !== null ? (
                           <span className="summary-val">({formatFixed(row.z_gap_down, 2)})</span>
                         ) : null}
@@ -285,25 +285,23 @@ export function AnalysisPage() {
                     ))}
                 </div>
                 {clusterDefendRows.length > 0 ? (
-                  <>
-                    <div className="summary-sub-label">Cluster</div>
-                    <div className="summary-items">
-                      {[...clusterDefendRows]
-                        .sort(
-                          (a, b) =>
-                            (typeof b.cluster_down_risk === "number" ? b.cluster_down_risk : 0) -
-                            (typeof a.cluster_down_risk === "number" ? a.cluster_down_risk : 0)
-                        )
-                        .map((row) => (
-                          <span key={`cd-${String(row.category)}`} className="summary-item">
-                            <strong>{String(row.display).replace("/G", "")}</strong>
-                            {row.cluster_down_risk != null ? (
-                              <span className="summary-val">({formatFixed(row.cluster_down_risk, 2)})</span>
-                            ) : null}
-                          </span>
-                        ))}
-                    </div>
-                  </>
+                  <div className="summary-items">
+                    {[...clusterDefendRows]
+                      .sort(
+                        (a, b) =>
+                          (typeof b.cluster_down_risk === "number" ? b.cluster_down_risk : 0) -
+                          (typeof a.cluster_down_risk === "number" ? a.cluster_down_risk : 0)
+                      )
+                      .map((row) => (
+                        <span key={`cd-${String(row.category)}`} className="summary-item">
+                          <strong>{String(row.display).replace("/G", "")}</strong>
+                          <span className="summary-label">Cluster</span>
+                          {row.cluster_down_risk != null ? (
+                            <span className="summary-val">({formatFixed(row.cluster_down_risk, 2)})</span>
+                          ) : null}
+                        </span>
+                      ))}
+                  </div>
                 ) : null}
               </div>
             </section>

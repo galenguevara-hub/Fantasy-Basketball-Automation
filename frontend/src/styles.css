@@ -311,6 +311,14 @@ h2 {
   font-weight: 600;
 }
 
+.summary-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
 .summary-val {
   font-size: 12px;
   color: var(--muted);

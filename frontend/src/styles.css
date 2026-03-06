@@ -275,90 +275,62 @@ h2 {
 }
 
 .summary-panel {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 
 .summary-group {
-  flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
+  padding: 14px 16px;
 }
 
 .summary-group h3 {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  margin: 0;
-  margin-right: 6px;
-  white-space: nowrap;
-}
-
-.summary-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
+  margin: 0 0 8px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.4;
 }
 
-.summary-target .summary-pill {
-  background: rgba(34, 139, 34, 0.1);
-  color: #1a7a1a;
+.summary-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
 }
 
-.summary-defend .summary-pill {
-  background: rgba(200, 40, 40, 0.1);
-  color: #b22222;
+.summary-item {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 13px;
 }
 
-.summary-pill .summary-val {
-  font-weight: 400;
-  font-size: 11px;
-  opacity: 0.7;
+.summary-item strong {
+  font-weight: 600;
+}
+
+.summary-val {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .summary-sub-label {
-  width: 100%;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  margin: 4px 0 0;
-}
-
-.summary-cluster-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
-  line-height: 1.4;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 8px 0 4px;
 }
 
-.summary-target .summary-cluster-pill {
-  background: rgba(34, 139, 34, 0.06);
-  color: #2d8a2d;
+.summary-target {
+  border-left: 3px solid #16a34a;
 }
 
-.summary-defend .summary-cluster-pill {
-  background: rgba(200, 40, 40, 0.06);
-  color: #c44;
+.summary-defend {
+  border-left: 3px solid #dc2626;
 }
 
 .table-wrap {

@@ -241,7 +241,7 @@ export function AnalysisPage() {
                     <span key={`target-${row.category}`} className="summary-item">
                       <strong>{row.display.replace("/G", "")}</strong>
                       {row.z_gap_up !== null ? (
-                        <span className="summary-val">({formatFixed(row.z_gap_up, 2)}σ)</span>
+                        <span className="summary-val">({formatFixed(row.z_gap_up, 2)})</span>
                       ) : null}
                     </span>
                   ))}
@@ -269,7 +269,7 @@ export function AnalysisPage() {
                     <span key={`defend-${row.category}`} className="summary-item">
                       <strong>{row.display.replace("/G", "")}</strong>
                       {row.z_gap_down !== null ? (
-                        <span className="summary-val">({formatFixed(row.z_gap_down, 2)}σ)</span>
+                        <span className="summary-val">({formatFixed(row.z_gap_down, 2)})</span>
                       ) : null}
                     </span>
                   ))}

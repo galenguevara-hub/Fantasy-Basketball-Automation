@@ -6,6 +6,10 @@ For each team and category, measures how many roto-point jumps are within a
 fixed effort threshold (T = 0.75 σ by default), signalling whether a modest
 improvement (or decline) can swing multiple standings positions at once.
 
+Scoring versions:
+  v1 (legacy)  — count-based: score = reachable_tiers / T
+  v2 (active)  — distance-weighted: weight(z) = 1 - z/T, score = Σweight / T
+
 All computations use the same per-game normalised stats as Layer 1.
 No web dependencies — pure data logic.
 """
@@ -22,6 +26,19 @@ T_DEFAULT: float = 0.75
 # Tag counts mirror Layer 1 conventions.
 N_CLUSTER_TARGETS: int = 3
 N_CLUSTER_DEFEND: int = 2
+
+# Scoring version: "v2" (distance-weighted) or "v1" (count-based legacy).
+SCORING_VERSION: str = "v2"
+
+
+def _weighted_score(z_distances: List[float], T: float) -> float:
+    """Distance-weighted score: closer tiers contribute more. weight(z) = 1 - z/T."""
+    return sum(1 - (z / T) for z in z_distances) / T
+
+
+def _safe_mean(values: List[float]) -> Optional[float]:
+    """Return the arithmetic mean, or None if the list is empty."""
+    return sum(values) / len(values) if values else None
 
 
 def compute_tiers(values_by_team: Dict[str, Optional[float]]) -> List[float]:
@@ -60,17 +77,21 @@ def compute_cluster_metrics(
         Dict keyed by team_name -> {category_name -> metrics_dict}.
 
         Each metrics_dict contains:
-            sigma              : population std dev for this category (None if
-                                 sigma == 0 or fewer than 2 valid values)
+            sigma              : population std dev for this category
             tier_idx           : 0-indexed tier position (0 = best tier)
             n_tiers            : total number of distinct tiers
-            z_to_gain_1        : z required to reach the next tier above
-            z_to_gain_2        : z required to jump 2 tiers above (or None)
-            z_to_gain_3        : z required to jump 3 tiers above (or None)
-            points_up_within_T : number of tiers above within T*sigma effort
-            cluster_up_score   : points_up_within_T / T
-            points_down_within_T: number of tiers below within T*sigma buffer
-            cluster_down_risk  : points_down_within_T / T
+            z_to_gain_1/2/3    : z required to jump 1/2/3 tiers above
+            z_to_lose_1/2/3    : z required to fall 1/2/3 tiers below
+            points_up_within_T : count of tiers above within T*sigma effort
+            points_down_within_T: count of tiers below within T*sigma buffer
+            cluster_up_score_v1: legacy count-based: points_up / T
+            cluster_down_risk_v1: legacy count-based: points_down / T
+            cluster_up_score_v2: distance-weighted: Σ(1 - z/T) / T
+            cluster_down_risk_v2: distance-weighted: Σ(1 - z/T) / T
+            z_up_max/mean      : max/mean of reachable upside z-distances
+            z_down_max/mean    : max/mean of reachable downside z-distances
+            cluster_up_score   : active score (v1 or v2 per SCORING_VERSION)
+            cluster_down_risk  : active score (v1 or v2 per SCORING_VERSION)
             T                  : the threshold used
 
         All fields are None when sigma is None or the team has no value for
@@ -134,19 +155,28 @@ def compute_cluster_metrics(
             z_to_lose_2 = _z_lose(2)
             z_to_lose_3 = _z_lose(3)
 
-            # Tiers above whose threshold is within T*sigma effort.
-            points_up = sum(
-                1
-                for j in range(tier_idx)          # indices 0 .. tier_idx-1
+            # Collect reachable z-distances and count tiers within threshold.
+            reachable_up = [
+                (tier_values[j] - x_i) / sigma  # type: ignore[operator]
+                for j in range(tier_idx)
                 if (tier_values[j] - x_i) / sigma <= T  # type: ignore[operator]
-            )
-
-            # Tiers below whose threshold is within T*sigma buffer.
-            points_down = sum(
-                1
+            ]
+            reachable_down = [
+                (x_i - tier_values[j]) / sigma  # type: ignore[operator]
                 for j in range(tier_idx + 1, n_tiers)
                 if (x_i - tier_values[j]) / sigma <= T  # type: ignore[operator]
-            )
+            ]
+
+            points_up = len(reachable_up)
+            points_down = len(reachable_down)
+
+            # v1 legacy scoring (count-based, retained for rollback)
+            up_v1 = points_up / T
+            down_v1 = points_down / T
+
+            # v2 distance-weighted scoring
+            up_v2 = _weighted_score(reachable_up, T) if reachable_up else 0.0
+            down_v2 = _weighted_score(reachable_down, T) if reachable_down else 0.0
 
             result[team_name][cat_name] = {
                 "sigma": sigma,
@@ -159,9 +189,21 @@ def compute_cluster_metrics(
                 "z_to_lose_2": z_to_lose_2,
                 "z_to_lose_3": z_to_lose_3,
                 "points_up_within_T": points_up,
-                "cluster_up_score": points_up / T,
                 "points_down_within_T": points_down,
-                "cluster_down_risk": points_down / T,
+                # v1 legacy scoring (count-based)
+                "cluster_up_score_v1": up_v1,
+                "cluster_down_risk_v1": down_v1,
+                # v2 distance-weighted scoring
+                "cluster_up_score_v2": up_v2,
+                "cluster_down_risk_v2": down_v2,
+                # Diagnostics
+                "z_up_max": max(reachable_up) if reachable_up else None,
+                "z_up_mean": _safe_mean(reachable_up),
+                "z_down_max": max(reachable_down) if reachable_down else None,
+                "z_down_mean": _safe_mean(reachable_down),
+                # Active scores — used by tagging, sorting, and UI
+                "cluster_up_score": up_v2 if SCORING_VERSION == "v2" else up_v1,
+                "cluster_down_risk": down_v2 if SCORING_VERSION == "v2" else down_v1,
                 "T": T,
                 "tag": None,
             }
@@ -186,8 +228,16 @@ def _none_cluster_entry() -> Dict[str, Any]:
         "z_to_lose_2": None,
         "z_to_lose_3": None,
         "points_up_within_T": None,
-        "cluster_up_score": None,
         "points_down_within_T": None,
+        "cluster_up_score_v1": None,
+        "cluster_down_risk_v1": None,
+        "cluster_up_score_v2": None,
+        "cluster_down_risk_v2": None,
+        "z_up_max": None,
+        "z_up_mean": None,
+        "z_down_max": None,
+        "z_down_mean": None,
+        "cluster_up_score": None,
         "cluster_down_risk": None,
         "T": None,
         "tag": None,

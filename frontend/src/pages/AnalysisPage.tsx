@@ -387,16 +387,16 @@ export function AnalysisPage() {
                     bunched close enough that one push gains multiple spots.
                   </li>
                   <li>
-                    <strong>Up Score:</strong> Pts Up ÷ 0.75 — a density-adjusted ROI. Higher = more multi-point leverage per
-                    unit of effort.
+                    <strong>Up Score:</strong> Distance-weighted upside — tiers closer to you contribute more. Higher = more
+                    reachable multi-point gains.
                   </li>
                   <li>
                     <strong>Pts Dn:</strong> How many roto-point drops sit within 0.75σ below you — teams so close that a
                     small slip costs multiple positions.
                   </li>
                   <li>
-                    <strong>Dn Risk:</strong> Pts Dn ÷ 0.75 — a density-adjusted fragility score. Higher = more exposure to a
-                    multi-point collapse.
+                    <strong>Dn Risk:</strong> Distance-weighted fragility — tiers closer below contribute more. Higher = more
+                    immediate multi-point exposure.
                   </li>
                 </ul>
                 <div className="analysis-key-rules">

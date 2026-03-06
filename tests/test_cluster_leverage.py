@@ -15,6 +15,7 @@ import pytest
 
 from fba.analysis.cluster_leverage import (
     T_DEFAULT,
+    _weighted_score,
     compute_cluster_metrics,
     compute_tiers,
 )
@@ -178,8 +179,15 @@ class TestClusteredAbove:
     def test_points_up_within_T_equals_3(self):
         assert self.d["points_up_within_T"] == 3
 
-    def test_cluster_up_score(self):
-        assert self.d["cluster_up_score"] == pytest.approx(3 / T_DEFAULT, abs=1e-6)
+    def test_cluster_up_score_v1(self):
+        """Legacy count-based: 3 / T."""
+        assert self.d["cluster_up_score_v1"] == pytest.approx(3 / T_DEFAULT, abs=1e-6)
+
+    def test_cluster_up_score_active_is_v2(self):
+        """Active score uses v2 distance-weighted formula."""
+        assert self.d["cluster_up_score"] == pytest.approx(
+            self.d["cluster_up_score_v2"], abs=1e-9
+        )
 
     # ── points down ───────────────────────────────────────────────────────
 
@@ -380,22 +388,33 @@ class TestEdgeCases:
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestClusterScoreFormulas:
-    """Verify score = count / T for a known scenario."""
+    """Verify v1 count-based and v2 distance-weighted formulas."""
 
-    def test_cluster_up_score_formula(self):
-        """cluster_up_score = points_up_within_T / T."""
+    def test_v1_up_score_formula(self):
+        """v1: cluster_up_score_v1 = points_up_within_T / T."""
         result = compute_cluster_metrics(CLUSTERED_ABOVE)
         d = result["Team D"]["PTS/G"]
         expected = d["points_up_within_T"] / T_DEFAULT
-        assert d["cluster_up_score"] == pytest.approx(expected, abs=1e-9)
+        assert d["cluster_up_score_v1"] == pytest.approx(expected, abs=1e-9)
 
-    def test_cluster_down_risk_formula(self):
-        """cluster_down_risk = points_down_within_T / T."""
+    def test_v1_down_risk_formula(self):
+        """v1: cluster_down_risk_v1 = points_down_within_T / T."""
         result = compute_cluster_metrics(CLUSTERED_ABOVE)
-        # Build a scenario where Team E has 1 tier within T above it
-        # (Team D, 20, is far from E=15 at this sigma ≈ 2.2, so this is 0).
         e = result["Team E"]["PTS/G"]
-        assert e["cluster_down_risk"] == pytest.approx(0.0, abs=1e-9)
+        assert e["cluster_down_risk_v1"] == pytest.approx(0.0, abs=1e-9)
+
+    def test_v2_active_score_not_equal_to_v1(self):
+        """Active v2 score differs from v1 when tiers are not equidistant."""
+        result = compute_cluster_metrics(CLUSTERED_ABOVE)
+        d = result["Team D"]["PTS/G"]
+        # Team D has 3 reachable tiers with different z-distances → v2 != v1
+        assert d["cluster_up_score_v1"] != pytest.approx(
+            d["cluster_up_score_v2"], abs=1e-6
+        )
+        # Active field should be v2
+        assert d["cluster_up_score"] == pytest.approx(
+            d["cluster_up_score_v2"], abs=1e-9
+        )
 
     def test_all_teams_have_entries_for_all_categories(self):
         """Every team must have a metrics dict for all 8 categories."""
@@ -611,6 +630,83 @@ class TestZToLose:
         assert b_pts["z_to_lose_1"] is None
         assert b_pts["z_to_lose_2"] is None
         assert b_pts["z_to_lose_3"] is None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TestV2Differentiation — tight vs spread clusters
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestV2Differentiation:
+    """v2 distance-weighted scoring differentiates tight vs spread clusters.
+
+    v1 treats [0.10, 0.20, 0.30] and [0.60, 0.70, 0.74] identically (same
+    count of reachable tiers). v2 rewards tightness: closer tiers contribute
+    more via weight(z) = 1 - z/T.
+    """
+
+    def test_weighted_score_tight_beats_spread(self):
+        """Direct unit test of _weighted_score."""
+        T = 0.75
+        tight = [0.10, 0.20, 0.30]
+        spread = [0.60, 0.70, 0.74]
+
+        # v1 (count-based) would be identical: 3/T = 4.0 for both
+        assert len(tight) / T == pytest.approx(len(spread) / T)
+
+        # v2 must differ: tight > spread
+        v2_tight = _weighted_score(tight, T)
+        v2_spread = _weighted_score(spread, T)
+        assert v2_tight > v2_spread
+
+    def test_weighted_score_values(self):
+        """Verify exact v2 formula: Σ(1 - z/T) / T."""
+        T = 0.75
+        z_list = [0.10, 0.20, 0.30]
+        # weights: (1-0.10/0.75)=0.8667, (1-0.20/0.75)=0.7333, (1-0.30/0.75)=0.6
+        expected = (0.8667 + 0.7333 + 0.6) / 0.75
+        assert _weighted_score(z_list, T) == pytest.approx(expected, abs=1e-3)
+
+    def test_single_tier_at_zero_distance(self):
+        """A tier at z=0 (exact tie) gets maximum weight=1.0."""
+        T = 0.75
+        score = _weighted_score([0.0], T)
+        assert score == pytest.approx(1.0 / T, abs=1e-9)
+
+    def test_single_tier_at_threshold(self):
+        """A tier at z=T gets weight=0.0 → score=0."""
+        T = 0.75
+        score = _weighted_score([T], T)
+        assert score == pytest.approx(0.0, abs=1e-9)
+
+    def test_empty_list_not_called(self):
+        """_weighted_score is only called with non-empty lists; verify result if called."""
+        T = 0.75
+        # Division by T of an empty sum = 0/T = 0
+        score = _weighted_score([], T)
+        assert score == pytest.approx(0.0, abs=1e-9)
+
+    def test_diagnostics_populated(self):
+        """z_up_max, z_up_mean, z_down_max, z_down_mean should be present."""
+        result = compute_cluster_metrics(CLUSTERED_ABOVE)
+        d = result["Team D"]["PTS/G"]
+        assert d["z_up_max"] is not None
+        assert d["z_up_mean"] is not None
+        # Team D has 0 tiers below within T → diagnostics are None
+        assert d["z_down_max"] is None
+        assert d["z_down_mean"] is None
+
+    def test_z_up_mean_correct(self):
+        """z_up_mean should be the mean of reachable upside z-distances."""
+        result = compute_cluster_metrics(CLUSTERED_ABOVE)
+        d = result["Team D"]["PTS/G"]
+        sigma = d["sigma"]
+        z_vals = [
+            (20.3 - 20.0) / sigma,
+            (20.5 - 20.0) / sigma,
+            (21.0 - 20.0) / sigma,
+        ]
+        assert d["z_up_mean"] == pytest.approx(sum(z_vals) / len(z_vals), abs=1e-6)
+        assert d["z_up_max"] == pytest.approx(max(z_vals), abs=1e-6)
 
 
 if __name__ == "__main__":

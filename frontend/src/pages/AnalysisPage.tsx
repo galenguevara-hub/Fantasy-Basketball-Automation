@@ -218,6 +218,8 @@ export function AnalysisPage() {
       tag: clusterMetrics.tag
     };
   });
+  const clusterTargetRows = clusterRows.filter((row) => row.tag === "TARGET");
+  const clusterDefendRows = clusterRows.filter((row) => row.tag === "DEFEND");
 
   return (
     <AppShell leagueId={leagueId} loading={loading} onReload={reload} scrapedAt={data?.scraped_at ?? null}>
@@ -234,31 +236,59 @@ export function AnalysisPage() {
             <section className="summary-panel">
               <div className="summary-group summary-target">
                 <h3>Categories to Target</h3>
-                <p className="summary-note">Best ROI - smallest effort for +1 roto point</p>
-                <ul>
+                <div className="summary-items">
                   {targetRows.map((row) => (
-                    <li key={`target-${row.category}`}>
-                      <strong>{row.display}</strong>
-                      <span className="summary-detail">
-                        {row.z_gap_up === null ? "—" : `${formatFixed(row.z_gap_up, 2)}σ to gain a rank`}
-                      </span>
-                    </li>
+                    <span key={`target-${row.category}`} className="summary-item">
+                      <strong>{row.display.replace("/G", "")}</strong>
+                      {row.z_gap_up !== null ? (
+                        <span className="summary-val">({formatFixed(row.z_gap_up, 2)}σ)</span>
+                      ) : null}
+                    </span>
                   ))}
-                </ul>
+                </div>
+                {clusterTargetRows.length > 0 ? (
+                  <>
+                    <div className="summary-sub-label">Cluster</div>
+                    <div className="summary-items">
+                      {clusterTargetRows.map((row) => (
+                        <span key={`cluster-target-${String(row.category)}`} className="summary-item">
+                          <strong>{String(row.display).replace("/G", "")}</strong>
+                          {row.cluster_up_score !== null && row.cluster_up_score !== undefined ? (
+                            <span className="summary-val">({formatFixed(row.cluster_up_score, 2)})</span>
+                          ) : null}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </div>
               <div className="summary-group summary-defend">
                 <h3>Categories to Defend</h3>
-                <p className="summary-note">Smallest buffer - risk of losing -1 roto point</p>
-                <ul>
+                <div className="summary-items">
                   {defendRows.map((row) => (
-                    <li key={`defend-${row.category}`}>
-                      <strong>{row.display}</strong>
-                      <span className="summary-detail">
-                        {row.z_gap_down === null ? "—" : `${formatFixed(row.z_gap_down, 2)}σ buffer`}
-                      </span>
-                    </li>
+                    <span key={`defend-${row.category}`} className="summary-item">
+                      <strong>{row.display.replace("/G", "")}</strong>
+                      {row.z_gap_down !== null ? (
+                        <span className="summary-val">({formatFixed(row.z_gap_down, 2)}σ)</span>
+                      ) : null}
+                    </span>
                   ))}
-                </ul>
+                </div>
+                {clusterDefendRows.length > 0 ? (
+                  <>
+                    <div className="summary-sub-label">Cluster</div>
+                    <div className="summary-items">
+                      {clusterDefendRows.map((row) => (
+                        <span key={`cluster-defend-${String(row.category)}`} className="summary-item">
+                          <strong>{String(row.display).replace("/G", "")}</strong>
+                          {row.cluster_down_risk !== null && row.cluster_down_risk !== undefined ? (
+                            <span className="summary-val">({formatFixed(row.cluster_down_risk, 2)})</span>
+                          ) : null}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </div>
             </section>
           ) : null}

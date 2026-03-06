@@ -284,41 +284,45 @@ h2 {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 20px 24px;
+  padding: 14px 16px;
 }
 
 .summary-group h3 {
-  margin: 0 0 4px;
+  margin: 0 0 8px;
   font-size: 14px;
   font-weight: 600;
 }
 
-.summary-note {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: var(--muted);
-  font-style: italic;
-}
-
-.summary-group ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.summary-items {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
 }
 
-.summary-group li {
+.summary-item {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  font-size: 14px;
+  gap: 2px;
+  font-size: 13px;
 }
 
-.summary-detail {
-  font-size: 13px;
+.summary-item strong {
+  font-weight: 600;
+}
+
+.summary-val {
+  font-size: 12px;
   color: var(--muted);
+}
+
+.summary-sub-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 8px 0 4px;
 }
 
 .summary-target {

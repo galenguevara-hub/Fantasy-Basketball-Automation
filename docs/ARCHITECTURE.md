@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Current as of March 7, 2026 (`main` local state).
+Current as of March 8, 2026 (`main` local state).
 
 ## Runtime Modes
 
@@ -14,11 +14,11 @@ Current as of March 7, 2026 (`main` local state).
 
 ```text
 Browser
-  -> GET /, /analysis, /games-played
+  -> GET /, /executive-summary, /analysis, /games-played
      -> Flask serves frontend/dist/index.html
   -> React app
      -> GET /api/config
-     -> GET /api/overview, /api/analysis, /api/games-played
+     -> GET /api/overview, /api/executive-summary, /api/analysis, /api/games-played
      -> POST /api/config (set league_id in session)
      -> POST /refresh (auth required)
         -> refresh cooldown check (Redis key, 30s window)
@@ -27,6 +27,12 @@ Browser
         -> fba.yahoo_api.fetch_standings()
         -> cache standings per user_id + league_id (Redis, 1h TTL)
 ```
+
+React route behavior:
+
+- `/` defaults to Executive Summary
+- `/standings` is used for in-app navigation to the standings page
+- `/executive-summary` is an explicit alias route
 
 `POST /refresh` returns `429` with `retry_after` when rate-limited.
 
@@ -103,6 +109,7 @@ Redis must be provided externally via `REDIS_URL`.
 - per-user standings cache read/write
 - per-user refresh cooldown checks (`429` + `retry_after`)
 - league ID persistence/restore via Redis for authenticated users
+- executive-summary payload builder and API route wiring
 
 ### `src/fba/auth.py`
 
@@ -146,6 +153,12 @@ Redis must be provided externally via `REDIS_URL`.
 - pace so far vs required pace
 - net delta and `date_valid` handling
 
+### `src/fba/analysis/executive_summary.py`
+
+- composes normalization + layer-1 + cluster + pace + projection outputs
+- builds a decision dashboard payload for one selected team
+- powers both top-level executive summary copy and tabular sections
+
 ## Frontend Structure
 
 - `frontend/src/main.tsx`: app entrypoint
@@ -161,10 +174,10 @@ part of the supported runtime path.
 
 ## Verification Snapshot
 
-Latest recorded verification (March 3, 2026):
+Latest recorded verification (March 8, 2026):
 
-- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
-- Result: `120 passed`
+- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py`
+- Result: `78 passed`
 - `npm --prefix frontend run build`
 - Result: passed
 

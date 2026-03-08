@@ -733,10 +733,6 @@ details[open] > .analysis-key-title {
   border-left: 4px solid var(--accent);
 }
 
-.executive-top-metrics {
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
-}
-
 .executive-line {
   margin: 0;
   line-height: 1.5;
@@ -777,6 +773,11 @@ details[open] > .analysis-key-title {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
   gap: 10px;
+}
+
+.executive-metrics-grid.executive-top-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .metric-card {

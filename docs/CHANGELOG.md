@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-03-08
+
+### Executive summary and docs alignment
+
+- Made Executive Summary the default React landing page (`/`).
+- Added/maintained explicit executive routes:
+  - `GET /executive-summary`
+  - `GET /api/executive-summary`
+- Added/maintained in-app standings route (`/standings`) for the previous
+  standings dashboard view.
+- Updated executive summary presentation details:
+  - card/metric visual emphasis
+  - equal-games-played rank copy updates
+  - projected standings difference column
+  - category/team chip-heavy summary styling
+
+### Documentation sync to latest app behavior
+
+- Updated all primary docs to match current runtime and route behavior:
+  - `README.md`
+  - `frontend/README.md`
+  - `docs/QUICKSTART.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/IMPLEMENTATION_SUMMARY.md`
+  - `docs/DOCS.md`
+- Added documentation for `src/fba/analysis/executive_summary.py`.
+- Updated verification snapshots to March 8, 2026:
+  - `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py` (`78 passed`)
+  - `npm --prefix frontend run build` (passed)
+
 ## 2026-03-07
 
 ### Documentation sync to latest code behavior

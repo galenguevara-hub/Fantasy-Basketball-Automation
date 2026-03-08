@@ -1,6 +1,6 @@
 # Implementation Summary
 
-Status: current as of March 7, 2026.
+Status: current as of March 8, 2026.
 
 ## What Is Implemented
 
@@ -13,6 +13,7 @@ Status: current as of March 7, 2026.
 - Layer 1 category target/defend analysis in `src/fba/analysis/category_targets.py`
 - Layer 2 cluster leverage analysis in `src/fba/analysis/cluster_leverage.py`
 - Games-played pace analysis in `src/fba/analysis/games_played.py`
+- Executive summary synthesis layer in `src/fba/analysis/executive_summary.py`
 - Multi-stage Docker build in `Dockerfile`
 - Local Docker + Redis stack in `docker-compose.yml`
 - Fly.io deployment config in `fly.toml`
@@ -23,6 +24,7 @@ Status: current as of March 7, 2026.
 - `GET /`
 - `GET /analysis`
 - `GET /games-played`
+- `GET /executive-summary`
 - `GET /auth/yahoo`
 - `GET /debug/auth-url`
 - `GET /auth/yahoo/callback`
@@ -34,12 +36,15 @@ Status: current as of March 7, 2026.
 - `GET /api/overview`
 - `GET /api/analysis`
 - `GET /api/games-played`
+- `GET /api/executive-summary`
 - `POST /refresh`
 - `GET /assets/<path:filename>`
 
 ## Runtime Notes
 
 - Default mode is `FBA_UI_MODE=react`
+- React homepage is Executive Summary (`/`)
+- Standings are available via React route `/standings` in the app menu
 - `react` and `auto` require `frontend/dist/index.html`
 - `legacy` serves templates and reads disk-backed config/data
 - `POST /refresh` requires authentication and valid Yahoo tokens
@@ -99,14 +104,14 @@ Status: current as of March 7, 2026.
 
 ## Verification Snapshot
 
-Latest recorded verification (March 3, 2026):
+Latest recorded verification (March 8, 2026):
 
-- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
-- Result: `120 passed`
+- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py`
+- Result: `78 passed`
 - `npm --prefix frontend run build`
 - Result: passed
 
-Also recorded on March 3, 2026:
+Also recorded on March 8, 2026:
 
 - `./venv/bin/pytest -q` failed during collection in checked-in `venv` because
   backend dependencies (including `python-dotenv`) were missing there

@@ -5,8 +5,9 @@ This directory contains the supported React + Vite UI for the default
 
 ## Routes
 
-- `/`: standings, raw totals, per-game tables, and per-game rank totals
-- `/executive-summary`: decision dashboard combining ranks, z-gaps, pace, and projections
+- `/`: executive summary decision dashboard (default landing page)
+- `/executive-summary`: executive summary alias route
+- `/standings`: standings, raw totals, per-game tables, and per-game rank totals
 - `/analysis`: Layer 1 category analysis plus Layer 2 cluster leverage
 - `/games-played`: games-played pace and season-window controls
 
@@ -94,9 +95,11 @@ Vite runs on `http://localhost:5173`.
 npm run build
 ```
 
-`src/fba/app.py` serves `frontend/dist/index.html` for `/`, `/analysis`, and
-`/games-played` when `FBA_UI_MODE` is `react` (and when `auto` is supplied,
-since `auto` is treated as `react`).
+`src/fba/app.py` serves `frontend/dist/index.html` for `/`,
+`/executive-summary`, `/analysis`, and `/games-played` when `FBA_UI_MODE` is
+`react` (and when `auto` is supplied, since `auto` is treated as `react`).
+
+`/standings` is a client route in `src/App.tsx` used during in-app navigation.
 
 ## Docker/Fly Integration
 

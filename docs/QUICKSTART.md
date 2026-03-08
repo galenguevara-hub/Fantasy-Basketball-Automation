@@ -36,6 +36,9 @@ npm --prefix frontend run build
 
 Open `http://localhost:8080`.
 
+Default landing page is the Executive Summary dashboard. Use the hamburger
+menu to access Standings (`/standings`), Category Analysis, and Games Played.
+
 For the current React flow, this shell path expects a working Redis instance
 behind `REDIS_URL`. If you do not already have Redis running, use Docker
 Compose instead.
@@ -110,16 +113,16 @@ Current `fly.toml` highlights:
 
 ## 8) Verification
 
-Latest recorded verification (March 3, 2026):
+Latest recorded verification (March 8, 2026):
 
 ```bash
-./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py
+./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py
 npm --prefix frontend run build
 ```
 
 Results:
 
-- pytest subset: `120 passed`
+- pytest subset: `78 passed`
 - frontend build: passed
 
 If `./venv/bin/pytest -q` fails during collection, reinstall backend

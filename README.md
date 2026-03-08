@@ -3,7 +3,7 @@
 Yahoo Fantasy Basketball analysis app with a Flask backend, React frontend,
 Yahoo OAuth login, and direct Yahoo Fantasy API refreshes.
 
-## Current State (March 7, 2026)
+## Current State (March 8, 2026)
 
 Supported runtime/deployment path:
 
@@ -33,6 +33,13 @@ Archived one-off tooling and deprecated flows live in `legacy/`.
   v1 scores retained for diagnostics/rollback
 - Analysis UI summary cards split into `L1` and `Cluster` sections and sorted
   by priority score
+- Executive Summary route and API (`GET /executive-summary`,
+  `GET /api/executive-summary`) added for decision-focused synthesis
+- Executive Summary is now the default React landing page (`/`)
+- Standings view moved to a dedicated client route (`/standings`) for
+  in-app navigation
+- Executive Summary UI now emphasizes visual chips/metrics, category leverage,
+  and equal-games-played rank context
 
 ## Environment Variables
 
@@ -149,6 +156,8 @@ React mode is session-driven:
 
 - `session["league_id"]` stores the active league
 - `session["yahoo_tokens"]` stores encrypted Yahoo tokens
+- React route map defaults to Executive Summary on `/`
+- Standings table page is available from the app menu via `/standings`
 
 With `REDIS_URL`:
 
@@ -169,10 +178,10 @@ Legacy template mode still reads:
 
 ## Verification Snapshot
 
-Latest recorded verification (March 3, 2026):
+Latest recorded verification (March 8, 2026):
 
-- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`
-- Result: `120 passed`
+- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py`
+- Result: `78 passed`
 - `npm --prefix frontend run build`
 - Result: passed
 

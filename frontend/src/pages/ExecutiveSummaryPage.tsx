@@ -282,7 +282,7 @@ export function ExecutiveSummaryPage() {
                 <strong className="dyn-value">{formatCompact(selectedVsRawRow?.current_points, 1)}</strong>
               </div>
               <div className="metric-card">
-                <span className="metric-label">Games Played: EQUAL-GP RANK</span>
+                <span className="metric-label">EQUAL GAMES PLAYED RANK</span>
                 <strong className="dyn-value">{formatOrdinal(summaryCard.expected_equal_gp_rank)}</strong>
               </div>
             </div>

@@ -37,14 +37,16 @@
 - `src/fba/analysis/cluster_leverage.py`: layer-2 cluster leverage scoring (v2
   active, v1 retained)
 - `src/fba/analysis/games_played.py`: pace analysis
+- `src/fba/analysis/executive_summary.py`: cross-model synthesis for the
+  executive summary dashboard
 - `scripts/start_server.sh`: default local startup
 - `scripts/start_dev.sh`: backend + Vite dev startup
 
 ## Current Verification Snapshot
 
-Latest recorded (March 3, 2026):
+Latest recorded (March 8, 2026):
 
-- maintained calculation tests: `120 passed`
+- maintained calculation tests: `78 passed`
 - frontend production build: passed
 - full `./venv/bin/pytest -q` is still blocked in the checked-in `venv`
   because backend packages are missing there

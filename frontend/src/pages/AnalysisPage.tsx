@@ -19,12 +19,6 @@ const CAT_CLASS_MAP: Record<string, string> = {
   "BLK/G": "cat-blk"
 };
 
-function renderTagPill(tag: unknown): ReactNode {
-  if (tag !== "TARGET" && tag !== "DEFEND") {
-    return "—";
-  }
-  return <span className={`tag ${tag === "TARGET" ? "tag-target" : "tag-defend"}`}>{tag}</span>;
-}
 
 function normalizeCategory(value: unknown): string | null {
   if (typeof value === "string") {
@@ -111,12 +105,13 @@ function analysisColumns(teamPgRank: Record<string, string>) {
     { key: "gap_down", label: "Gap−", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
     { key: "z_gap_down", label: "z−", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
     { key: "target_score", label: "Score", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
-    { key: "tag", label: "Tag", align: "center" as const, cellClassName: "col-tag", render: renderTagPill }
+    { key: "is_target", label: "Target", align: "center" as const, cellClassName: "col-tag", render: (v: unknown) => v ? <span className="tag tag-target">TARGET</span> : "—" },
+    { key: "is_defend", label: "Defend", align: "center" as const, cellClassName: "col-tag", render: (v: unknown) => v ? <span className="tag tag-defend">DEFEND</span> : "—" }
   ];
 }
 
 const LEAGUE_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const },
+  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
   { key: "pg_rank", label: "PG Rank", align: "right" as const },
   {
     key: "rank_total",
@@ -167,7 +162,8 @@ const CLUSTER_COLUMNS = [
   { key: "z_to_lose_3", label: "z−3", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
   { key: "points_down_within_T", label: "Pts Down ≤ 0.75σ", align: "right" as const, render: formatPlain },
   { key: "cluster_down_risk", label: "Dn Risk", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
-  { key: "tag", label: "Tag", align: "center" as const, render: renderTagPill }
+  { key: "is_target", label: "Target", align: "center" as const, cellClassName: "col-tag", render: (v: unknown) => v ? <span className="tag tag-target">TARGET</span> : "—" },
+  { key: "is_defend", label: "Defend", align: "center" as const, cellClassName: "col-tag", render: (v: unknown) => v ? <span className="tag tag-defend">DEFEND</span> : "—" }
 ];
 
 export function AnalysisPage() {
@@ -191,8 +187,8 @@ export function AnalysisPage() {
   }
 
   const analysisRows = data?.analysis ?? [];
-  const targetRows = analysisRows.filter((row) => row.tag === "TARGET");
-  const defendRows = analysisRows.filter((row) => row.tag === "DEFEND");
+  const targetRows = analysisRows.filter((row) => row.is_target);
+  const defendRows = analysisRows.filter((row) => row.is_defend);
   const teamPgRank = data?.team_pg_rank ?? {};
   const leagueRows = data?.league_summary ?? [];
   const clusterRows = analysisRows.map((row) => {
@@ -215,11 +211,13 @@ export function AnalysisPage() {
       z_to_lose_3: clusterMetrics.z_to_lose_3,
       points_down_within_T: clusterMetrics.points_down_within_T,
       cluster_down_risk: clusterMetrics.cluster_down_risk,
-      tag: clusterMetrics.tag
+      tag: clusterMetrics.tag,
+      is_target: clusterMetrics.is_target,
+      is_defend: clusterMetrics.is_defend
     };
   });
-  const clusterTargetRows = clusterRows.filter((row) => row.tag === "TARGET");
-  const clusterDefendRows = clusterRows.filter((row) => row.tag === "DEFEND");
+  const clusterTargetRows = clusterRows.filter((row) => row.is_target);
+  const clusterDefendRows = clusterRows.filter((row) => row.is_defend);
 
   return (
     <AppShell leagueId={leagueId} loading={loading} onReload={reload} scrapedAt={data?.scraped_at ?? null}>
@@ -232,75 +230,86 @@ export function AnalysisPage() {
 
       {hasData && data ? (
         <>
+          <div className="control-row">
+            <label htmlFor="team-select">Analyze team</label>
+            <select id="team-select" onChange={onTeamChange} value={data.selected_team ?? ""}>
+              {data.team_names.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {analysisRows.length > 0 ? (
             <section className="summary-panel">
               <div className="summary-group summary-target">
                 <h3>Categories to Target</h3>
-                <div className="summary-items">
-                  {[...targetRows]
-                    .sort((a, b) => (b.z_gap_up ?? 0) - (a.z_gap_up ?? 0))
-                    .map((row) => (
-                      <span key={`target-${row.category}`} className="summary-item">
-                        <strong>{row.display.replace("/G", "")}</strong>
-                        <span className="summary-label">L1</span>
-                        {row.z_gap_up !== null ? (
-                          <span className="summary-val">({formatFixed(row.z_gap_up, 2)})</span>
-                        ) : null}
-                      </span>
-                    ))}
-                </div>
-                {clusterTargetRows.length > 0 ? (
+                <div className="summary-section">
+                  <span className="summary-section-label">L1</span>
                   <div className="summary-items">
-                    {[...clusterTargetRows]
-                      .sort(
-                        (a, b) =>
-                          (typeof b.cluster_up_score === "number" ? b.cluster_up_score : 0) -
-                          (typeof a.cluster_up_score === "number" ? a.cluster_up_score : 0)
-                      )
-                      .map((row) => (
-                        <span key={`ct-${String(row.category)}`} className="summary-item">
-                          <strong>{String(row.display).replace("/G", "")}</strong>
-                          <span className="summary-label">Cluster</span>
-                          {row.cluster_up_score != null ? (
-                            <span className="summary-val">({formatFixed(row.cluster_up_score, 2)})</span>
-                          ) : null}
+                    {[...targetRows]
+                      .sort((a, b) => (a.z_gap_up ?? 0) - (b.z_gap_up ?? 0))
+                      .map((row, i) => (
+                        <span key={`target-${row.category}`} className="summary-item">
+                          <span className="summary-rank">{i + 1}.</span>
+                          <span className={`tag ${CAT_CLASS_MAP[row.category] ?? ""}`}>{row.display.replace("/G", "")}</span>
                         </span>
                       ))}
+                  </div>
+                </div>
+                {clusterTargetRows.length > 0 ? (
+                  <div className="summary-section">
+                    <span className="summary-section-label">Cluster</span>
+                    <div className="summary-items">
+                      {[...clusterTargetRows]
+                        .sort(
+                          (a, b) =>
+                            (typeof b.cluster_up_score === "number" ? b.cluster_up_score : 0) -
+                            (typeof a.cluster_up_score === "number" ? a.cluster_up_score : 0)
+                        )
+                        .map((row, i) => (
+                          <span key={`ct-${String(row.category)}`} className="summary-item">
+                            <span className="summary-rank">{i + 1}.</span>
+                            <span className={`tag ${CAT_CLASS_MAP[String(row.category)] ?? ""}`}>{String(row.display).replace("/G", "")}</span>
+                          </span>
+                        ))}
+                    </div>
                   </div>
                 ) : null}
               </div>
               <div className="summary-group summary-defend">
                 <h3>Categories to Defend</h3>
-                <div className="summary-items">
-                  {[...defendRows]
-                    .sort((a, b) => (b.z_gap_down ?? 0) - (a.z_gap_down ?? 0))
-                    .map((row) => (
-                      <span key={`defend-${row.category}`} className="summary-item">
-                        <strong>{row.display.replace("/G", "")}</strong>
-                        <span className="summary-label">L1</span>
-                        {row.z_gap_down !== null ? (
-                          <span className="summary-val">({formatFixed(row.z_gap_down, 2)})</span>
-                        ) : null}
-                      </span>
-                    ))}
-                </div>
-                {clusterDefendRows.length > 0 ? (
+                <div className="summary-section">
+                  <span className="summary-section-label">L1</span>
                   <div className="summary-items">
-                    {[...clusterDefendRows]
-                      .sort(
-                        (a, b) =>
-                          (typeof b.cluster_down_risk === "number" ? b.cluster_down_risk : 0) -
-                          (typeof a.cluster_down_risk === "number" ? a.cluster_down_risk : 0)
-                      )
-                      .map((row) => (
-                        <span key={`cd-${String(row.category)}`} className="summary-item">
-                          <strong>{String(row.display).replace("/G", "")}</strong>
-                          <span className="summary-label">Cluster</span>
-                          {row.cluster_down_risk != null ? (
-                            <span className="summary-val">({formatFixed(row.cluster_down_risk, 2)})</span>
-                          ) : null}
+                    {[...defendRows]
+                      .sort((a, b) => (a.z_gap_down ?? 0) - (b.z_gap_down ?? 0))
+                      .map((row, i) => (
+                        <span key={`defend-${row.category}`} className="summary-item">
+                          <span className="summary-rank">{i + 1}.</span>
+                          <span className={`tag ${CAT_CLASS_MAP[row.category] ?? ""}`}>{row.display.replace("/G", "")}</span>
                         </span>
                       ))}
+                  </div>
+                </div>
+                {clusterDefendRows.length > 0 ? (
+                  <div className="summary-section">
+                    <span className="summary-section-label">Cluster</span>
+                    <div className="summary-items">
+                      {[...clusterDefendRows]
+                        .sort(
+                          (a, b) =>
+                            (typeof b.cluster_down_risk === "number" ? b.cluster_down_risk : 0) -
+                            (typeof a.cluster_down_risk === "number" ? a.cluster_down_risk : 0)
+                        )
+                        .map((row, i) => (
+                          <span key={`cd-${String(row.category)}`} className="summary-item">
+                            <span className="summary-rank">{i + 1}.</span>
+                            <span className={`tag ${CAT_CLASS_MAP[String(row.category)] ?? ""}`}>{String(row.display).replace("/G", "")}</span>
+                          </span>
+                        ))}
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -308,24 +317,17 @@ export function AnalysisPage() {
           ) : null}
 
           <section>
-            <h2>Category Analysis - {data.selected_team}</h2>
-            <div className="control-row">
-              <label htmlFor="team-select">Analyze team</label>
-              <select id="team-select" onChange={onTeamChange} value={data.selected_team ?? ""}>
-                {data.team_names.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <h2>Level 1 Category Analysis</h2>
+            <p className="section-note">
+              Ranks each category by score — how easy it is to gain a roto point vs. how exposed you are to losing one.
+            </p>
             <DataTable
               columns={analysisColumns(teamPgRank)}
               initialSort={{ key: "target_score", desc: true }}
               rowClassName={(row) => {
-                const tag = row.tag;
-                if (tag === "TARGET") return "row-target";
-                if (tag === "DEFEND") return "row-defend";
+                if (row.is_target && row.is_defend) return "row-target row-defend";
+                if (row.is_target) return "row-target";
+                if (row.is_defend) return "row-defend";
                 return undefined;
               }}
               rows={analysisRows}
@@ -373,9 +375,9 @@ export function AnalysisPage() {
                 columns={CLUSTER_COLUMNS}
                 initialSort={{ key: "cluster_up_score", desc: true }}
                 rowClassName={(row) => {
-                  const tag = row.tag;
-                  if (tag === "TARGET") return "row-target";
-                  if (tag === "DEFEND") return "row-defend";
+                  if (row.is_target && row.is_defend) return "row-target row-defend";
+                  if (row.is_target) return "row-target";
+                  if (row.is_defend) return "row-defend";
                   return undefined;
                 }}
                 rows={clusterRows}

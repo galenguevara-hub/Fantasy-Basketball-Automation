@@ -114,6 +114,12 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
       </header>
 
       <main className="app-main">{children}</main>
+
+      <footer className="app-footer">
+        <a className="bmc-btn" href="https://buymeacoffee.com/scrappydo" rel="noopener noreferrer" target="_blank">
+          🍺 Buy me a beer
+        </a>
+      </footer>
     </div>
   );
 }

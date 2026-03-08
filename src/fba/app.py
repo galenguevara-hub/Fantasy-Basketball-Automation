@@ -330,21 +330,21 @@ def _build_analysis_payload(data: Optional[dict], league_id: str, selected_team:
         name = row["team_name"]
         cats = all_analysis.get(name, [])
         targets = sorted(
-            [c for c in cats if c["tag"] == "TARGET"],
+            [c for c in cats if c.get("is_target")],
             key=lambda c: -(c["target_score"] or 0),
         )
         defends = sorted(
-            [c for c in cats if c["tag"] == "DEFEND"],
-            key=lambda c: -(c["target_score"] or 0),
+            [c for c in cats if c.get("is_defend")],
+            key=lambda c: (c["z_gap_down"] if c["z_gap_down"] is not None else float("inf")),
         )
 
         cluster_cats = all_cluster.get(name, {})
         cluster_targets = sorted(
-            [cn for cn, m in cluster_cats.items() if m.get("tag") == "TARGET"],
+            [cn for cn, m in cluster_cats.items() if m.get("is_target")],
             key=lambda cn: -(cluster_cats[cn].get("cluster_up_score") or 0),
         )
         cluster_defends = sorted(
-            [cn for cn, m in cluster_cats.items() if m.get("tag") == "DEFEND"],
+            [cn for cn, m in cluster_cats.items() if m.get("is_defend")],
             key=lambda cn: -(cluster_cats[cn].get("cluster_down_risk") or 0),
         )
 

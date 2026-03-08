@@ -37,9 +37,15 @@ TIE_SCORE_CAP = 1000.0
 # Weight for risk component in target score.
 RISK_WEIGHT = 0.25
 
+# Weight for defensive score when team is already in 1st place.
+DEFEND_WEIGHT = 0.8
+
+# Floor to prevent division by zero in score calculations.
+EPS = 0.05
+
 # Number of categories to tag as TARGET / DEFEND.
 N_TARGETS = 3
-N_DEFEND = 2
+N_DEFEND = 3
 
 
 def compute_category_sigma(
@@ -228,6 +234,8 @@ def compute_gaps_and_scores(
                 "z_gap_down": z_gap_down,
                 "target_score": target_score,
                 "tag": None,  # filled in below
+                "is_target": False,
+                "is_defend": False,
             })
 
         # --- Assign recommendation tags ---
@@ -256,6 +264,8 @@ def _none_entry(cat: dict, rank: Optional[int]) -> dict:
         "z_gap_down": None,
         "target_score": None,
         "tag": None,
+        "is_target": False,
+        "is_defend": False,
     }
 
 
@@ -266,16 +276,24 @@ def _compute_target_score(
     """
     Compute the target score (ROI-like) for a category.
 
-    score = effort_component + 0.25 * risk_component
+    For non-first-place categories:
+        score = effort_component + 0.25 * risk_component
+        effort_component = 1 / max(z_gap_up, EPS)
+        risk_component   = z_gap_down (if exists, else 0)
 
-    effort_component = 1 / z_gap_up  (if z_gap_up exists and > 0)
-    risk_component   = z_gap_down    (if exists)
+    For first-place categories (z_gap_up is None):
+        score = DEFEND_WEIGHT / max(z_gap_down, EPS)
+        Fragile leads (small z_gap_down) get a higher score so they
+        can still be prioritised as defensive categories.
 
-    If z_gap_up is None → score is None (already best, no gain possible).
-    If z_gap_up == 0    → tie with team above, cap at TIE_SCORE_CAP.
+    If z_gap_up == 0 → tie with team above, cap effort at TIE_SCORE_CAP.
+    Returns None only when both z_gap_up and z_gap_down are None
+    (e.g. solo league or missing data).
     """
     if z_gap_up is None:
-        return None
+        if z_gap_down is None:
+            return None
+        return DEFEND_WEIGHT / max(z_gap_down, EPS)
 
     if z_gap_up == 0:
         effort = TIE_SCORE_CAP
@@ -291,25 +309,34 @@ def _assign_tags(cat_analyses: List[Dict[str, Any]]) -> None:
     """
     Assign TARGET and DEFEND tags in-place.
 
+    TARGET and DEFEND are independent — a category can be both.
+
     TARGET: top N_TARGETS categories by target_score (highest first).
+            Only categories where the team is NOT already in 1st place
+            (z_gap_up is not None) are eligible.
     DEFEND: categories with lowest z_gap_down (smallest buffer, most vulnerable).
-            Only categories NOT already tagged as TARGET.
+            Any category with a z_gap_down is eligible, regardless of TARGET status.
+
+    The legacy ``tag`` field is set to "TARGET" if only target, "DEFEND" if
+    only defend, or "TARGET" if both (for backward compatibility with row
+    highlighting). Use ``is_target`` / ``is_defend`` for precise checks.
     """
-    # TARGET: highest target_score
-    scorable = [c for c in cat_analyses if c["target_score"] is not None]
+    # TARGET: highest target_score among categories that can still be improved
+    scorable = [c for c in cat_analyses if c["target_score"] is not None and c["z_gap_up"] is not None]
     scorable.sort(key=lambda c: (-c["target_score"], c["category"]))
 
-    target_names = set()
     for c in scorable[:N_TARGETS]:
+        c["is_target"] = True
         c["tag"] = "TARGET"
-        target_names.add(c["category"])
 
-    # DEFEND: lowest z_gap_down among non-TARGET categories that have a z_gap_down.
+    # DEFEND: lowest z_gap_down — independent of TARGET status
     defendable = [
         c for c in cat_analyses
-        if c["category"] not in target_names and c["z_gap_down"] is not None
+        if c["z_gap_down"] is not None
     ]
     defendable.sort(key=lambda c: (c["z_gap_down"], c["category"]))
 
     for c in defendable[:N_DEFEND]:
-        c["tag"] = "DEFEND"
+        c["is_defend"] = True
+        if c["tag"] is None:
+            c["tag"] = "DEFEND"

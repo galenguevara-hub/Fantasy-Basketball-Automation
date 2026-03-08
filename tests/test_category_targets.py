@@ -143,7 +143,9 @@ class TestGapComputations:
 
         assert pts_entry["z_gap_up"] is None
         assert pts_entry["next_better_team"] is None
-        assert pts_entry["target_score"] is None
+        # 1st place with a valid z_gap_down gets a defensive score
+        assert pts_entry["target_score"] is not None
+        assert pts_entry["target_score"] > 0
 
     def test_worst_team_has_no_gap_down(self):
         """Team D (worst in PTS/G) should have z_gap_down = None."""
@@ -223,6 +225,7 @@ class TestTieHandling:
 
         alpha_pts = _find_cat(result["Alpha"], "PTS/G")
         assert alpha_pts["z_gap_up"] is None
+        # Both tied for best with no one below in PTS → z_gap_down is None → score is None
         assert alpha_pts["target_score"] is None
 
         bravo_pts = _find_cat(result["Bravo"], "PTS/G")
@@ -246,12 +249,14 @@ class TestTargetScore:
         expected_score = (1.0 / z_up) + RISK_WEIGHT * z_down
         assert pts_entry["target_score"] == pytest.approx(expected_score, abs=1e-6)
 
-    def test_best_team_score_is_none(self):
-        """Team that is best in category has score=None (no gain possible)."""
+    def test_best_team_gets_defensive_score(self):
+        """Team that is best in category gets a defensive score based on z_gap_down."""
         result = compute_gaps_and_scores(FOUR_TEAMS)
         team_a = result["Team A"]
         pts_entry = _find_cat(team_a, "PTS/G")
-        assert pts_entry["target_score"] is None
+        # 1st place with a valid z_gap_down: score = DEFEND_WEIGHT / max(z_gap_down, EPS)
+        assert pts_entry["target_score"] is not None
+        assert pts_entry["target_score"] > 0
 
     def test_score_ordering_favors_smaller_gap(self):
         """A team closer to the next rank should have a higher score."""
@@ -279,13 +284,12 @@ class TestRecommendationTags:
 
         # Team B (middle team with scores for most categories)
         team_b = result["Team B"]
-        tags = [c["tag"] for c in team_b if c["tag"] is not None]
 
-        target_count = sum(1 for t in tags if t == "TARGET")
-        defend_count = sum(1 for t in tags if t == "DEFEND")
+        target_count = sum(1 for c in team_b if c["is_target"])
+        defend_count = sum(1 for c in team_b if c["is_defend"])
 
         assert target_count <= 3
-        assert defend_count <= 2
+        assert defend_count <= 3
         assert target_count > 0  # should have at least 1 target
 
     def test_target_has_highest_scores(self):
@@ -293,40 +297,51 @@ class TestRecommendationTags:
         result = compute_gaps_and_scores(FOUR_TEAMS)
         team_c = result["Team C"]
 
-        scored = [c for c in team_c if c["target_score"] is not None]
-        # Same tie-break as the implementation: highest score first, then alphabetical.
+        scored = [c for c in team_c if c["target_score"] is not None and c["z_gap_up"] is not None]
         scored.sort(key=lambda c: (-c["target_score"], c["category"]))
 
-        target_cats = {c["category"] for c in team_c if c["tag"] == "TARGET"}
+        target_cats = {c["category"] for c in team_c if c["is_target"]}
         top_3_cats = {c["category"] for c in scored[:3]}
 
         assert target_cats == top_3_cats
 
     def test_defend_has_smallest_buffer(self):
-        """DEFEND tags should be on non-TARGET categories with smallest z_gap_down."""
+        """DEFEND tags should be on categories with smallest z_gap_down (independent of TARGET)."""
         result = compute_gaps_and_scores(FOUR_TEAMS)
         team_b = result["Team B"]
 
-        target_cats = {c["category"] for c in team_b if c["tag"] == "TARGET"}
-        defend_cats = [
-            c for c in team_b
-            if c["tag"] == "DEFEND"
-        ]
+        defend_cats = [c for c in team_b if c["is_defend"]]
 
-        # Verify DEFEND cats are not in TARGET
-        for c in defend_cats:
-            assert c["category"] not in target_cats
-
-        # Verify they have the smallest z_gap_down among non-TARGET
-        non_target_with_gap = [
+        # Verify they have the smallest z_gap_down among all categories
+        with_gap = [
             c for c in team_b
-            if c["category"] not in target_cats and c["z_gap_down"] is not None
+            if c["z_gap_down"] is not None
         ]
-        non_target_with_gap.sort(key=lambda c: c["z_gap_down"])
+        with_gap.sort(key=lambda c: (c["z_gap_down"], c["category"]))
 
         defend_cat_names = {c["category"] for c in defend_cats}
-        expected = {c["category"] for c in non_target_with_gap[:2]}
+        expected = {c["category"] for c in with_gap[:3]}
         assert defend_cat_names == expected
+
+    def test_category_can_be_both_target_and_defend(self):
+        """A category can be both TARGET and DEFEND simultaneously."""
+        result = compute_gaps_and_scores(FOUR_TEAMS)
+        # Check across all teams if any category has both flags
+        for team_name, cats in result.items():
+            for c in cats:
+                if c["is_target"] and c["is_defend"]:
+                    # Found one — both flags are set, test passes
+                    return
+        # If no overlap found in this dataset, just verify the flags are independent
+        # by checking that defend doesn't exclude targets
+        for team_name, cats in result.items():
+            target_cats = {c["category"] for c in cats if c["is_target"]}
+            defend_cats = {c["category"] for c in cats if c["is_defend"]}
+            # Defend should be based on z_gap_down, not filtered by target status
+            with_gap = [c for c in cats if c["z_gap_down"] is not None]
+            with_gap.sort(key=lambda c: (c["z_gap_down"], c["category"]))
+            expected_defend = {c["category"] for c in with_gap[:3]}
+            assert defend_cats == expected_defend
 
 
 class TestEdgeCases:

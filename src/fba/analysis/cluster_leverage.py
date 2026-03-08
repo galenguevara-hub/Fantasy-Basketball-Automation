@@ -25,7 +25,7 @@ T_DEFAULT: float = 0.75
 
 # Tag counts mirror Layer 1 conventions.
 N_CLUSTER_TARGETS: int = 3
-N_CLUSTER_DEFEND: int = 2
+N_CLUSTER_DEFEND: int = 3
 
 # Scoring version: "v2" (distance-weighted) or "v1" (count-based legacy).
 SCORING_VERSION: str = "v2"
@@ -206,6 +206,8 @@ def compute_cluster_metrics(
                 "cluster_down_risk": down_v2 if SCORING_VERSION == "v2" else down_v1,
                 "T": T,
                 "tag": None,
+                "is_target": False,
+                "is_defend": False,
             }
 
     # Assign TARGET / DEFEND tags for each team after all categories are scored.
@@ -241,6 +243,8 @@ def _none_cluster_entry() -> Dict[str, Any]:
         "cluster_down_risk": None,
         "T": None,
         "tag": None,
+        "is_target": False,
+        "is_defend": False,
     }
 
 
@@ -248,9 +252,10 @@ def _assign_cluster_tags(team_metrics: Dict[str, Any]) -> None:
     """
     Assign TARGET / DEFEND tags in-place for one team's cluster metrics dict.
 
+    TARGET and DEFEND are independent — a category can be both.
+
     TARGET: top N_CLUSTER_TARGETS categories by cluster_up_score (must be > 0).
-    DEFEND: top N_CLUSTER_DEFEND categories by cluster_down_risk (must be > 0),
-            only among categories not already tagged TARGET.
+    DEFEND: top N_CLUSTER_DEFEND categories by cluster_down_risk (must be > 0).
 
     Tie-break within each group: higher score first, then category name ascending.
     """
@@ -261,19 +266,19 @@ def _assign_cluster_tags(team_metrics: Dict[str, Any]) -> None:
     ]
     up_candidates.sort(key=lambda x: (-x[1]["cluster_up_score"], x[0]))
 
-    target_cats: set = set()
     for cat_name, m in up_candidates[:N_CLUSTER_TARGETS]:
         m["tag"] = "TARGET"
-        target_cats.add(cat_name)
+        m["is_target"] = True
 
-    # DEFEND — highest cluster fragility, excluding already-tagged categories.
+    # DEFEND — highest cluster fragility, independent of TARGET.
     down_candidates = [
         (cat_name, m) for cat_name, m in team_metrics.items()
-        if cat_name not in target_cats
-        and m.get("cluster_down_risk") is not None
+        if m.get("cluster_down_risk") is not None
         and m["cluster_down_risk"] > 0
     ]
     down_candidates.sort(key=lambda x: (-x[1]["cluster_down_risk"], x[0]))
 
     for cat_name, m in down_candidates[:N_CLUSTER_DEFEND]:
-        m["tag"] = "DEFEND"
+        m["is_defend"] = True
+        if m["tag"] is None:
+            m["tag"] = "DEFEND"

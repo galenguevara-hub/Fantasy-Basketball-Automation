@@ -32,6 +32,8 @@ export interface AnalysisCategory extends JsonRecord {
   category: string;
   display: string;
   tag: "TARGET" | "DEFEND" | null;
+  is_target: boolean;
+  is_defend: boolean;
   value: number | null;
   rank: number | null;
   next_better_team: string | null;

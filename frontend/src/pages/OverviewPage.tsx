@@ -8,7 +8,7 @@ import type { TeamRow } from "../lib/types";
 import { useAsyncData } from "../lib/useAsyncData";
 
 const OVERALL_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const },
+  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
   { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const },
   { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
@@ -23,11 +23,11 @@ const OVERALL_COLUMNS = [
 ];
 
 const PER_GAME_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const },
+  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
   { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const },
-  { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-  { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
+  { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FG%_roto"] ?? row["FG%"] },
+  { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FT%_roto"] ?? row["FT%"] },
   { key: "3PM_pg", label: "3PM/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
   { key: "PTS_pg", label: "PTS/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
   { key: "REB_pg", label: "REB/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
@@ -37,11 +37,11 @@ const PER_GAME_COLUMNS = [
 ];
 
 const OVERALL_STATS_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const },
+  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
   { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-  { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
+  { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FG%_roto"] ?? row["FG%"] },
+  { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FT%_roto"] ?? row["FT%"] },
   { key: "3PM", label: "3PM", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
   { key: "PTS", label: "PTS", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
   { key: "REB", label: "REB", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
@@ -51,7 +51,7 @@ const OVERALL_STATS_COLUMNS = [
 ];
 
 const RANKING_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const },
+  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
   { key: "rank", label: "Rank", align: "right" as const },
   { key: "GP", label: "GP", align: "right" as const },
   { key: "FG%_Rank", label: "FG%", align: "right" as const },
@@ -103,7 +103,9 @@ function toOverallStatsRows(teams: TeamRow[]) {
     team_name: team.team_name,
     GP: team.stats.GP,
     "FG%": team.stats["FG%"],
+    "FG%_roto": team.roto_points["FG%"],
     "FT%": team.stats["FT%"],
+    "FT%_roto": team.roto_points["FT%"],
     "3PM": team.stats["3PTM"],
     PTS: team.stats.PTS,
     REB: team.stats.REB,
@@ -117,6 +119,11 @@ export function OverviewPage() {
   const loader = useCallback((signal: AbortSignal) => getOverview(signal), []);
   const { data, loading, error, reload } = useAsyncData(loader, []);
   const autoRefreshed = useRef(false);
+
+  const perGameRows = data?.per_game_rows.map((row) => {
+    const team = data.teams.find((t) => t.team_name === row.team_name);
+    return team ? { ...row, "FG%_roto": team.roto_points["FG%"], "FT%_roto": team.roto_points["FT%"] } : row;
+  }) ?? [];
 
   const hasData = Boolean(data?.has_data);
   const leagueId = data?.league_id ?? "";
@@ -164,7 +171,7 @@ export function OverviewPage() {
           <section>
             <h2>Per-Game Averages</h2>
             <p className="section-note">Counting stats normalized by games played.</p>
-            <DataTable columns={PER_GAME_COLUMNS} initialSort={{ key: "rank", desc: false }} rows={data.per_game_rows} />
+            <DataTable columns={PER_GAME_COLUMNS} initialSort={{ key: "rank", desc: false }} rows={perGameRows} />
           </section>
 
           <section>

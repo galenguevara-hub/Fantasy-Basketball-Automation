@@ -8,7 +8,7 @@ import { formatFixed, toNumber } from "../lib/format";
 import { useAsyncData } from "../lib/useAsyncData";
 
 const GAMES_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const },
+  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
   { key: "rank", label: "Rank", align: "right" as const },
   { key: "gp", label: "GP", align: "right" as const },
   { key: "rank_total", label: "PG Total", align: "right" as const },
@@ -34,6 +34,12 @@ const GAMES_COLUMNS = [
     }
   }
 ];
+
+function formatDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-");
+  if (!year || !month || !day) return dateStr;
+  return `${month}/${day}/${year}`;
+}
 
 export function GamesPlayedPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -127,7 +133,7 @@ export function GamesPlayedPage() {
             {data.date_valid ? (
               <p className="section-note">
                 <strong>{data.elapsed_days}</strong> days elapsed · <strong>{data.remaining_days}</strong> days remaining (
-                {data.start_str} - {data.end_str}, inclusive)
+                {formatDate(data.start_str)} - {formatDate(data.end_str)}, inclusive)
               </p>
             ) : null}
           </section>

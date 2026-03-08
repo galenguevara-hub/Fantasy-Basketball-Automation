@@ -17,6 +17,7 @@ interface DataTableProps {
   columns: Column[];
   rows: DataRow[];
   initialSort?: { key: string; desc?: boolean };
+  tieBreaker?: { key: string; desc?: boolean };
   tableClassName?: string;
   rowClassName?: (row: DataRow, index: number) => string | undefined;
 }
@@ -47,7 +48,7 @@ function classNames(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(" ");
 }
 
-export function DataTable({ columns, rows, initialSort, tableClassName, rowClassName }: DataTableProps) {
+export function DataTable({ columns, rows, initialSort, tieBreaker, tableClassName, rowClassName }: DataTableProps) {
   const [sortKey, setSortKey] = useState(initialSort?.key ?? columns[0]?.key ?? "");
   const [sortDesc, setSortDesc] = useState(initialSort?.desc ?? false);
   const rowIdKey = columns[0]?.key ?? "id";
@@ -71,10 +72,30 @@ export function DataTable({ columns, rows, initialSort, tableClassName, rowClass
         compare = av < bv ? -1 : av > bv ? 1 : 0;
       }
 
-      return sortDesc ? -compare : compare;
+      if (compare !== 0) return sortDesc ? -compare : compare;
+
+      // Tie-breaker
+      if (tieBreaker) {
+        const tbKey = tieBreaker.key;
+        const tbDesc = tieBreaker.desc ?? false;
+        const ta = asComparable(a[tbKey]);
+        const tb = asComparable(b[tbKey]);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        let tbCompare = 0;
+        if (typeof ta === "number" && typeof tb === "number") {
+          tbCompare = ta - tb;
+        } else {
+          tbCompare = ta < tb ? -1 : ta > tb ? 1 : 0;
+        }
+        return tbDesc ? -tbCompare : tbCompare;
+      }
+
+      return 0;
     });
     return next;
-  }, [columns, rows, sortKey, sortDesc]);
+  }, [columns, rows, sortKey, sortDesc, tieBreaker]);
 
   function onSort(key: string) {
     if (key === sortKey) {
@@ -90,9 +111,9 @@ export function DataTable({ columns, rows, initialSort, tableClassName, rowClass
       <table className={tableClassName}>
         <thead>
           <tr>
-            {columns.map((column) => (
+            {columns.map((column, colIdx) => (
               <th
-                key={column.key}
+                key={`${colIdx}-${column.key}`}
                 className={classNames(
                   sortKey === column.key ? "active-sort" : "",
                   column.align ? `align-${column.align}` : "",
@@ -111,12 +132,12 @@ export function DataTable({ columns, rows, initialSort, tableClassName, rowClass
               key={`${index}-${String(row[rowIdKey] ?? "row")}`}
               className={rowClassName ? rowClassName(row, index) : undefined}
             >
-              {columns.map((column) => {
+              {columns.map((column, colIdx) => {
                 const value = row[column.key];
                 const customCellClass =
                   typeof column.cellClassName === "function" ? column.cellClassName(value, row) : column.cellClassName;
                 return (
-                  <td key={column.key} className={classNames(column.align ? `align-${column.align}` : "", customCellClass)}>
+                  <td key={`${colIdx}-${column.key}`} className={classNames(column.align ? `align-${column.align}` : "", customCellClass)}>
                     {column.render ? column.render(value, row) : formatCell(value)}
                   </td>
                 );

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from fba import app as app_module
-from fba.analysis.category_targets import RISK_WEIGHT, TIE_SCORE_CAP, compute_category_sigma
+from fba.analysis.category_targets import DEFEND_WEIGHT, EPS, RISK_WEIGHT, TIE_SCORE_CAP, compute_category_sigma
 from fba.analysis.cluster_leverage import compute_cluster_metrics
 from fba.normalize import normalize_standings
 
@@ -309,12 +309,17 @@ def test_analysis_and_cluster_fields_follow_expected_calculations(regression_cli
                 assert row["z_gap_down"] == pytest.approx(row["gap_down"] / sigma, abs=1e-12)
 
         z_up = row["z_gap_up"]
-        z_down = row["z_gap_down"] if row["z_gap_down"] is not None else 0.0
+        z_down = row["z_gap_down"]
         if z_up is None:
-            assert row["target_score"] is None
+            if z_down is None:
+                assert row["target_score"] is None
+            else:
+                expected = DEFEND_WEIGHT / max(z_down, EPS)
+                assert row["target_score"] == pytest.approx(expected, abs=1e-12)
         else:
             effort = TIE_SCORE_CAP if z_up == 0 else 1.0 / z_up
-            expected = effort + RISK_WEIGHT * z_down
+            risk = z_down if z_down is not None else 0.0
+            expected = effort + RISK_WEIGHT * risk
             assert row["target_score"] == pytest.approx(expected, abs=1e-12)
 
     selected_team = analysis_payload["selected_team"]

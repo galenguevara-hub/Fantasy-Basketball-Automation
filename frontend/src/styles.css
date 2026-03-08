@@ -726,6 +726,227 @@ details[open] > .analysis-key-title {
   margin-top: 14px;
 }
 
+.executive-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 4px solid var(--accent);
+}
+
+.executive-top-metrics {
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+}
+
+.executive-line {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.executive-buckets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.executive-buckets h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.executive-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.executive-list-numbered {
+  padding-left: 20px;
+}
+
+.insight-chip-wrap {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 8px;
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+
+.executive-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.metric-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-card strong {
+  font-size: 16px;
+}
+
+.metric-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.dyn-value {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.muted-inline {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.intensity {
+  display: inline-block;
+  min-width: 68px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.intensity-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.intensity-medium {
+  background: #fef9c3;
+  color: #713f12;
+}
+
+.intensity-low {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.intensity-minimal {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.competitor-chip {
+  background: #eef2ff;
+  color: #3730a3;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.team-chip {
+  background: #dbeafe;
+  color: #1e3a8a;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.roi-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.roi-high {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.roi-medium {
+  background: #fef9c3;
+  color: #713f12;
+}
+
+.roi-low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.stability-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stability-stable {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.stability-moderate {
+  background: #fef9c3;
+  color: #713f12;
+}
+
+.stability-unstable {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.stability-unknown {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.diff {
+  font-weight: 700;
+}
+
+.diff-positive {
+  color: #15803d;
+}
+
+.diff-negative {
+  color: #b91c1c;
+}
+
+.diff-neutral {
+  color: var(--muted);
+}
+
+tbody tr.row-selected td {
+  background: #ecfeff;
+  font-weight: 600;
+}
+
+tbody tr.row-selected:nth-child(even) td {
+  background: #ecfeff;
+}
+
+tbody tr.row-selected:hover td {
+  background: #cffafe;
+}
+
+tbody tr.row-selected td:first-child {
+  background: #ecfeff;
+}
+
+tbody tr.row-selected:hover td:first-child {
+  background: #cffafe;
+}
+
 @media (max-width: 900px) {
   .header-row {
     flex-direction: column;
@@ -740,10 +961,30 @@ details[open] > .analysis-key-title {
   .app-main {
     padding: 16px;
   }
+
+  .executive-metrics-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .executive-top-metrics {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
   .summary-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .executive-buckets {
+    grid-template-columns: 1fr;
+  }
+
+  .executive-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .executive-top-metrics {
     grid-template-columns: 1fr;
   }
 }

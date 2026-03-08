@@ -59,16 +59,54 @@ export interface AnalysisPayload {
   league_summary: JsonRecord[];
 }
 
+export interface CountingCategoryMeta {
+  key: string;
+  display: string;
+}
+
 export interface GamesPlayedPayload {
   has_data: boolean;
   league_id: string;
   scraped_at: string | null;
   rows: JsonRecord[];
+  projected_totals: JsonRecord[];
+  projected_ranks: JsonRecord[];
+  counting_categories: CountingCategoryMeta[];
   start_str: string;
   end_str: string;
   total_games: number;
   elapsed_days: number | null;
   remaining_days: number | null;
   date_valid: boolean;
+  date_error: string | null;
+}
+
+export interface ExecutiveSummaryPayload {
+  has_data: boolean;
+  league_id: string;
+  scraped_at: string | null;
+  team_names: string[];
+  selected_team: string | null;
+  summary_card: JsonRecord;
+  per_game_vs_raw_rows: JsonRecord[];
+  per_game_vs_raw_label: string | null;
+  category_opportunities: JsonRecord[];
+  best_categories_to_target: JsonRecord[];
+  categories_at_risk: JsonRecord[];
+  multi_point_swings: JsonRecord[];
+  games_pace: JsonRecord;
+  nearby_teams: JsonRecord[];
+  nearby_team_insights: string[];
+  projected_standings: JsonRecord[];
+  projected_finish: number | null;
+  category_competition: JsonRecord[];
+  category_stability: JsonRecord[];
+  high_leverage_categories: string[];
+  actionable_insights: JsonRecord[];
+  trade_hints: string[];
+  momentum: JsonRecord;
+  start_str: string;
+  end_str: string;
+  total_games: number;
   date_error: string | null;
 }

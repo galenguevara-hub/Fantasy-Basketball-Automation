@@ -6,6 +6,7 @@ This directory contains the supported React + Vite UI for the default
 ## Routes
 
 - `/`: standings, raw totals, per-game tables, and per-game rank totals
+- `/executive-summary`: decision dashboard combining ranks, z-gaps, pace, and projections
 - `/analysis`: Layer 1 category analysis plus Layer 2 cluster leverage
 - `/games-played`: games-played pace and season-window controls
 
@@ -18,6 +19,7 @@ The frontend uses:
 - `GET /api/config`
 - `POST /api/config`
 - `GET /api/overview`
+- `GET /api/executive-summary`
 - `GET /api/analysis`
 - `GET /api/games-played`
 - `POST /refresh`

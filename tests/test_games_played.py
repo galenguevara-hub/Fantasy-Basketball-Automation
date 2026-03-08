@@ -6,7 +6,11 @@ from datetime import date
 
 import pytest
 
-from fba.analysis.games_played import compute_games_played_metrics
+from fba.analysis.games_played import (
+    compute_games_played_metrics,
+    compute_projected_roto_ranks,
+    compute_projected_totals,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -207,3 +211,162 @@ class TestEdgeCases:
         rows, _ = compute_games_played_metrics(teams, SEASON_START, SEASON_END, today)
         assert rows[0]["team_name"] == "Alpha"
         assert rows[0]["rank"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Helpers for projection tests
+# ---------------------------------------------------------------------------
+
+def make_full_team(name: str, gp: int, stats: dict, rank: int = 1, roto_points=None) -> dict:
+    """Create a team dict with full stats and optional roto_points."""
+    base_stats = {"GP": gp}
+    base_stats.update(stats)
+    team = {"team_name": name, "rank": rank, "stats": base_stats}
+    if roto_points is not None:
+        team["roto_points"] = roto_points
+    return team
+
+
+# ---------------------------------------------------------------------------
+# Projected totals
+# ---------------------------------------------------------------------------
+
+class TestProjectedTotals:
+    def test_basic_projection(self):
+        """Projected totals = (stat/gp) * projected_gp."""
+        teams = [make_full_team("Team A", 100, {"PTS": 2000, "REB": 500, "AST": 300, "ST": 80, "BLK": 50, "3PTM": 150})]
+        # 49 elapsed days (Oct 14 - Dec 1 inclusive), 160 total season days
+        today = date(2025, 12, 1)
+        rows = compute_projected_totals(teams, SEASON_START, SEASON_END, today)
+        assert len(rows) == 1
+        r = rows[0]
+        assert r["team_name"] == "Team A"
+        assert r["projected_gp"] is not None
+        assert r["projected_PTS"] is not None
+        # gp_per_day = 100/49, projected_gp = min(100/49 * 160, 816)
+        elapsed = (today - SEASON_START).days + 1
+        total_days = (SEASON_END - SEASON_START).days + 1
+        expected_gp = min(100 / elapsed * total_days, 816)
+        assert r["projected_gp"] == round(expected_gp)
+        # PTS: (2000/100) * projected_gp
+        expected_pts = (2000 / 100) * expected_gp
+        assert r["projected_PTS"] == round(expected_pts)
+
+    def test_cap_at_total_games(self):
+        """If pace exceeds total_games, projected_gp should be capped."""
+        # Team with very high GP early in season
+        teams = [make_full_team("Fast Team", 500, {"PTS": 10000})]
+        today = date(2025, 10, 20)  # 7 elapsed days
+        rows = compute_projected_totals(teams, SEASON_START, SEASON_END, today, total_games=816)
+        r = rows[0]
+        # gp_per_day = 500/7 ≈ 71.4, projected = 71.4 * 160 ≈ 11428 > 816
+        assert r["projected_gp"] == 816
+
+    def test_zero_gp_produces_none(self):
+        """Teams with 0 GP should have None projections."""
+        teams = [make_full_team("No Games", 0, {"PTS": 0})]
+        today = date(2025, 12, 1)
+        rows = compute_projected_totals(teams, SEASON_START, SEASON_END, today)
+        r = rows[0]
+        assert r["projected_gp"] is None
+        assert r["projected_PTS"] is None
+
+    def test_missing_stat_produces_none_for_that_stat(self):
+        """If a counting stat is missing, its projection is None but others work."""
+        teams = [make_full_team("Partial", 50, {"PTS": 1000})]  # no REB, AST etc
+        today = date(2025, 12, 1)
+        rows = compute_projected_totals(teams, SEASON_START, SEASON_END, today)
+        r = rows[0]
+        assert r["projected_PTS"] is not None
+        assert r["projected_REB"] is None
+        assert r["projected_AST"] is None
+
+    def test_invalid_date_returns_empty(self):
+        """Before season start should return empty list."""
+        teams = [make_full_team("Team A", 50, {"PTS": 1000})]
+        today = date(2025, 10, 13)  # before season
+        rows = compute_projected_totals(teams, SEASON_START, SEASON_END, today)
+        assert rows == []
+
+    def test_empty_teams(self):
+        today = date(2025, 12, 1)
+        rows = compute_projected_totals([], SEASON_START, SEASON_END, today)
+        assert rows == []
+
+    def test_custom_total_games(self):
+        """Custom total_games cap is respected."""
+        teams = [make_full_team("Team A", 100, {"PTS": 2000})]
+        today = date(2025, 12, 1)
+        rows_default = compute_projected_totals(teams, SEASON_START, SEASON_END, today, total_games=816)
+        rows_low = compute_projected_totals(teams, SEASON_START, SEASON_END, today, total_games=200)
+        # With low cap, projected_gp should be capped at 200
+        assert rows_low[0]["projected_gp"] == 200
+        # PTS should differ because of different projected_gp
+        assert rows_low[0]["projected_PTS"] != rows_default[0]["projected_PTS"]
+
+
+# ---------------------------------------------------------------------------
+# Projected roto ranks
+# ---------------------------------------------------------------------------
+
+class TestProjectedRotoRanks:
+    def _make_teams_and_projections(self):
+        """Create 3 teams with known projected totals for predictable ranking."""
+        teams = [
+            make_full_team("High", 100, {"PTS": 3000, "REB": 600, "AST": 400, "ST": 100, "BLK": 80, "3PTM": 200},
+                           rank=1, roto_points={"FG%": 3, "FT%": 2, "3PTM": 3, "PTS": 3, "REB": 3, "AST": 3, "ST": 3, "BLK": 3}),
+            make_full_team("Mid", 100, {"PTS": 2000, "REB": 400, "AST": 300, "ST": 70, "BLK": 50, "3PTM": 150},
+                           rank=2, roto_points={"FG%": 2, "FT%": 3, "3PTM": 2, "PTS": 2, "REB": 2, "AST": 2, "ST": 2, "BLK": 2}),
+            make_full_team("Low", 100, {"PTS": 1000, "REB": 200, "AST": 100, "ST": 30, "BLK": 20, "3PTM": 80},
+                           rank=3, roto_points={"FG%": 1, "FT%": 1, "3PTM": 1, "PTS": 1, "REB": 1, "AST": 1, "ST": 1, "BLK": 1}),
+        ]
+        today = date(2025, 12, 1)
+        projected = compute_projected_totals(teams, SEASON_START, SEASON_END, today)
+        return teams, projected
+
+    def test_highest_values_get_best_rank(self):
+        teams, projected = self._make_teams_and_projections()
+        ranks = compute_projected_roto_ranks(projected, teams)
+        by_name = {r["team_name"]: r for r in ranks}
+        # "High" team should rank 3 (best of 3) in all counting categories
+        assert by_name["High"]["PTS_Rank"] == 3
+        assert by_name["High"]["REB_Rank"] == 3
+        assert by_name["Low"]["PTS_Rank"] == 1
+        assert by_name["Low"]["REB_Rank"] == 1
+
+    def test_fg_ft_from_yahoo(self):
+        """FG% and FT% ranks should come from Yahoo roto_points, not projection."""
+        teams, projected = self._make_teams_and_projections()
+        ranks = compute_projected_roto_ranks(projected, teams)
+        by_name = {r["team_name"]: r for r in ranks}
+        assert by_name["High"]["FG%_Rank"] == 3
+        assert by_name["High"]["FT%_Rank"] == 2
+        assert by_name["Mid"]["FT%_Rank"] == 3
+
+    def test_projected_total_is_sum(self):
+        """projected_total should be sum of all 8 category ranks."""
+        teams, projected = self._make_teams_and_projections()
+        ranks = compute_projected_roto_ranks(projected, teams)
+        by_name = {r["team_name"]: r for r in ranks}
+        for name, row in by_name.items():
+            expected = sum([
+                row["3PTM_Rank"], row["PTS_Rank"], row["REB_Rank"],
+                row["AST_Rank"], row["ST_Rank"], row["BLK_Rank"],
+                row["FG%_Rank"], row["FT%_Rank"],
+            ])
+            assert row["projected_total"] == expected
+
+    def test_empty_projections(self):
+        ranks = compute_projected_roto_ranks([], [])
+        assert ranks == []
+
+    def test_missing_roto_points(self):
+        """Teams without roto_points should still get None for FG%/FT% ranks."""
+        teams = [make_full_team("Solo", 100, {"PTS": 2000}, rank=1)]
+        today = date(2025, 12, 1)
+        projected = compute_projected_totals(teams, SEASON_START, SEASON_END, today)
+        ranks = compute_projected_roto_ranks(projected, teams)
+        assert ranks[0]["FG%_Rank"] is None
+        assert ranks[0]["FT%_Rank"] is None
+        # projected_total should still work with available ranks
+        assert ranks[0]["projected_total"] is not None

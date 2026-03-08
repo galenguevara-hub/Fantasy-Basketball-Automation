@@ -2,6 +2,7 @@ import type {
   AnalysisPayload,
   AuthPayload,
   ConfigPayload,
+  ExecutiveSummaryPayload,
   GamesPlayedPayload,
   OverviewPayload
 } from "./types";
@@ -101,4 +102,14 @@ export function getGamesPlayed(params: {
   const query = search.toString();
   const url = query ? `/api/games-played?${query}` : "/api/games-played";
   return fetchJson<GamesPlayedPayload>(url, { signal: params.signal });
+}
+
+export function getExecutiveSummary(team?: string, signal?: AbortSignal) {
+  const search = new URLSearchParams();
+  if (team) {
+    search.set("team", team);
+  }
+  const query = search.toString();
+  const url = query ? `/api/executive-summary?${query}` : "/api/executive-summary";
+  return fetchJson<ExecutiveSummaryPayload>(url, { signal });
 }

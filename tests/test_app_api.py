@@ -204,6 +204,22 @@ def test_api_games_played_uses_defaults_for_bad_dates(client):
     assert len(payload["rows"]) == 3
 
 
+def test_api_executive_summary_supports_team_selection(client):
+    test_client, _, _ = client
+    _load_sample_standings_to_cache()
+
+    response = test_client.get("/api/executive-summary?team=Bravo")
+    assert response.status_code == 200
+
+    payload = response.get_json()
+    assert payload["has_data"] is True
+    assert payload["selected_team"] == "Bravo"
+    assert set(payload["team_names"]) == {"Alpha", "Bravo", "Charlie"}
+    assert isinstance(payload["summary_card"], dict)
+    assert isinstance(payload["actionable_insights"], list)
+    assert len(payload["per_game_vs_raw_rows"]) == 3
+
+
 def test_default_mode_without_build_returns_503(client):
     test_client, _, _ = client
 
@@ -217,7 +233,7 @@ def test_react_index_served_when_frontend_build_exists(client):
     frontend_dist_dir.mkdir(parents=True, exist_ok=True)
     (frontend_dist_dir / "index.html").write_text("<html><body>React Frontend</body></html>", encoding="utf-8")
 
-    for path in ["/", "/analysis", "/games-played"]:
+    for path in ["/", "/analysis", "/games-played", "/executive-summary"]:
         response = test_client.get(path)
         assert response.status_code == 200
         assert "React Frontend" in response.get_data(as_text=True)

@@ -80,7 +80,10 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
                 <span />
               </button>
               <nav className={`hamburger-menu ${menuOpen ? "open" : ""}`}>
-                <Link className={location.pathname === "/" ? "active" : ""} to="/">
+                <Link className={location.pathname === "/" || location.pathname === "/executive-summary" ? "active" : ""} to="/">
+                  Executive Summary
+                </Link>
+                <Link className={location.pathname === "/standings" ? "active" : ""} to="/standings">
                   Standings Analysis
                 </Link>
                 <Link className={location.pathname === "/analysis" ? "active" : ""} to="/analysis">

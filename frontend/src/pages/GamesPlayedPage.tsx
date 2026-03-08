@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { DataTable } from "../components/DataTable";
@@ -6,6 +6,8 @@ import { StatusPanel } from "../components/StatusPanel";
 import { getGamesPlayed } from "../lib/api";
 import { formatFixed, toNumber } from "../lib/format";
 import { useAsyncData } from "../lib/useAsyncData";
+import type { CountingCategoryMeta, JsonRecord } from "../lib/types";
+import type { ChangeEvent, ReactNode } from "react";
 
 const GAMES_COLUMNS = [
   { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
@@ -41,6 +43,172 @@ function formatDate(dateStr: string): string {
   return `${month}/${day}/${year}`;
 }
 
+function formatWhole(value: unknown): ReactNode {
+  const num = toNumber(value);
+  if (num === null) return "—";
+  return num.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function buildProjectedTotalsColumns(
+  categories: CountingCategoryMeta[],
+  maxGpTeams: Set<string>,
+  onToggle: (teamName: string) => void,
+) {
+  return [
+    { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
+    {
+      key: "__max_gp",
+      label: "Max GP?",
+      align: "center" as const,
+      render: (_value: unknown, row: JsonRecord) => (
+        <input
+          checked={maxGpTeams.has(row.team_name as string)}
+          onChange={() => onToggle(row.team_name as string)}
+          type="checkbox"
+        />
+      ),
+      sortValue: (_value: unknown, row: JsonRecord) => (maxGpTeams.has(row.team_name as string) ? 1 : 0),
+    },
+    { key: "projected_gp", label: "Proj GP", align: "right" as const, render: formatWhole },
+    ...categories.map((cat) => ({
+      key: `projected_${cat.key}`,
+      label: cat.display,
+      align: "right" as const,
+      render: formatWhole,
+    })),
+  ];
+}
+
+function buildProjectedRanksColumns(categories: CountingCategoryMeta[]) {
+  const countingColumns = categories.map((cat) => ({
+    key: `${cat.key}_Rank`,
+    label: cat.display,
+    align: "right" as const,
+  }));
+
+  return [
+    { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
+    { key: "projected_gp", label: "Proj GP", align: "right" as const, render: formatWhole },
+    { key: "FG%_Rank", label: "FG%", align: "right" as const },
+    { key: "FT%_Rank", label: "FT%", align: "right" as const },
+    ...countingColumns,
+    {
+      key: "projected_total",
+      label: "Total",
+      align: "right" as const,
+      cellClassName: "col-total",
+      render: (value: unknown) => {
+        const num = toNumber(value);
+        if (num === null) return "—";
+        // Show .5 for half-ranks from Yahoo tie averaging, whole numbers otherwise
+        return Number.isInteger(num) ? String(num) : num.toFixed(1);
+      },
+    },
+  ];
+}
+
+/** Recompute projected totals for teams with Max GP toggled on. */
+function adjustTotals(
+  rows: JsonRecord[],
+  maxGpTeams: Set<string>,
+  totalGames: number,
+  categories: CountingCategoryMeta[],
+): JsonRecord[] {
+  if (maxGpTeams.size === 0) return rows;
+  return rows.map((row) => {
+    const name = row.team_name as string;
+    if (!maxGpTeams.has(name)) return row;
+    const origGp = toNumber(row.projected_gp);
+    if (!origGp || origGp === 0) return row;
+    const adjusted: JsonRecord = { ...row, projected_gp: totalGames };
+    for (const cat of categories) {
+      const origVal = toNumber(row[`projected_${cat.key}`]);
+      if (origVal !== null) {
+        adjusted[`projected_${cat.key}`] = Math.round((origVal / origGp) * totalGames);
+      }
+    }
+    return adjusted;
+  });
+}
+
+/** Re-rank teams based on adjusted projected totals. Matches backend algorithm. */
+function rerankTeams(
+  adjustedTotals: JsonRecord[],
+  originalRanks: JsonRecord[],
+  categories: CountingCategoryMeta[],
+): JsonRecord[] {
+  const nTeams = adjustedTotals.length;
+  if (nTeams === 0) return [];
+
+  // Build lookup for FG%/FT% ranks from original data (unchanged)
+  const origRanksByName: Record<string, JsonRecord> = {};
+  for (const r of originalRanks) {
+    origRanksByName[r.team_name as string] = r;
+  }
+
+  // Rank each counting category: higher value = higher rank (N = best)
+  const countingKeys = categories.map((cat) => `projected_${cat.key}`);
+  const rankings: Record<string, Record<string, number>> = {};
+  for (const r of adjustedTotals) {
+    rankings[r.team_name as string] = {};
+  }
+
+  for (const projKey of countingKeys) {
+    const entries: [string, number | null][] = adjustedTotals.map((r) => [
+      r.team_name as string,
+      toNumber(r[projKey]),
+    ]);
+
+    // Sort: null sinks to end (rank 1), higher value first (rank N)
+    entries.sort((a, b) => {
+      const [nameA, valA] = a;
+      const [nameB, valB] = b;
+      if (valA === null && valB === null) return nameA.localeCompare(nameB);
+      if (valA === null) return 1;
+      if (valB === null) return -1;
+      if (valB !== valA) return valB - valA;
+      return nameA.localeCompare(nameB);
+    });
+
+    for (let i = 0; i < entries.length; i++) {
+      const [name] = entries[i];
+      rankings[name][projKey] = nTeams - i;
+    }
+  }
+
+  // Build output rows
+  return adjustedTotals.map((r) => {
+    const name = r.team_name as string;
+    const rankData = rankings[name] ?? {};
+    const orig = origRanksByName[name] ?? {};
+
+    const row: JsonRecord = {
+      team_name: name,
+      rank: r.rank,
+      projected_gp: r.projected_gp,
+    };
+
+    const catRankSum: number[] = [];
+    for (const cat of categories) {
+      const projKey = `projected_${cat.key}`;
+      const rankVal = rankData[projKey] ?? null;
+      row[`${cat.key}_Rank`] = rankVal;
+      if (rankVal !== null) catRankSum.push(rankVal);
+    }
+
+    // Carry FG%/FT% from original ranks
+    const fgRank = toNumber(orig["FG%_Rank"]);
+    const ftRank = toNumber(orig["FT%_Rank"]);
+    row["FG%_Rank"] = fgRank;
+    row["FT%_Rank"] = ftRank;
+    if (fgRank !== null) catRankSum.push(fgRank);
+    if (ftRank !== null) catRankSum.push(ftRank);
+
+    row.projected_total = catRankSum.length > 0 ? catRankSum.reduce((a, b) => a + b, 0) : null;
+    return row;
+  });
+}
+
 export function GamesPlayedPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const startParam = searchParams.get("start") || undefined;
@@ -72,6 +240,37 @@ export function GamesPlayedPage() {
       totalGames: totalGamesParam ?? String(data.total_games)
     });
   }, [data, endParam, startParam, totalGamesParam]);
+
+  const categories = data?.counting_categories ?? [];
+
+  // Max GP toggle state — per-team set, reset when data reloads
+  const [maxGpTeams, setMaxGpTeams] = useState<Set<string>>(new Set());
+  useEffect(() => { setMaxGpTeams(new Set()); }, [data]);
+
+  const toggleMaxGp = useCallback((teamName: string) => {
+    setMaxGpTeams((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamName)) next.delete(teamName);
+      else next.add(teamName);
+      return next;
+    });
+  }, []);
+
+  // Adjusted projections when Max GP is toggled
+  const adjustedTotals = useMemo(
+    () => adjustTotals(data?.projected_totals ?? [], maxGpTeams, data?.total_games ?? 816, categories),
+    [data?.projected_totals, maxGpTeams, data?.total_games, categories],
+  );
+  const adjustedRanks = useMemo(
+    () => rerankTeams(adjustedTotals, data?.projected_ranks ?? [], categories),
+    [adjustedTotals, data?.projected_ranks, categories],
+  );
+
+  const projTotalsColumns = useMemo(
+    () => buildProjectedTotalsColumns(categories, maxGpTeams, toggleMaxGp),
+    [categories, maxGpTeams, toggleMaxGp],
+  );
+  const projRanksColumns = useMemo(() => buildProjectedRanksColumns(categories), [categories]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -151,6 +350,36 @@ export function GamesPlayedPage() {
               slow down
             </p>
           </section>
+
+          {data.projected_totals.length > 0 ? (
+            <>
+              <section>
+                <h2>Projected End-of-Season Counting Totals</h2>
+                <p className="section-note gp-key">
+                  Extrapolates each team's current GP/day pace through the season end, capped at {data.total_games} total games.
+                  Per-game averages are multiplied by projected total GP to estimate final counting stats.
+                </p>
+                <DataTable
+                  columns={projTotalsColumns}
+                  initialSort={{ key: "projected_gp", desc: true }}
+                  rows={adjustedTotals}
+                />
+              </section>
+
+              <section>
+                <h2>Projected End-of-Season Roto Rankings</h2>
+                <p className="section-note gp-key">
+                  Counting-stat ranks are based on projected totals above. FG% and FT% ranks are carried forward
+                  from Yahoo's current base rankings. Total is the sum of all 8 category ranks.
+                </p>
+                <DataTable
+                  columns={projRanksColumns}
+                  initialSort={{ key: "projected_total", desc: true }}
+                  rows={data.projected_ranks}
+                />
+              </section>
+            </>
+          ) : null}
         </>
       ) : null}
     </AppShell>

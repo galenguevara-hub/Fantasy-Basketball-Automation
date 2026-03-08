@@ -23,7 +23,13 @@ from redis import Redis
 
 from fba.analysis.category_targets import compute_gaps_and_scores
 from fba.analysis.cluster_leverage import compute_cluster_metrics
-from fba.analysis.games_played import compute_games_played_metrics
+from fba.analysis.games_played import (
+    COUNTING_CATEGORIES,
+    compute_games_played_metrics,
+    compute_projected_roto_ranks,
+    compute_projected_totals,
+)
+from fba.analysis.executive_summary import build_executive_summary
 from fba.auth import (
     build_auth_url,
     clear_user_session,
@@ -460,14 +466,104 @@ def _build_games_played_payload(
         elif today > end_date:
             date_error = f"Season has ended (ended {end_str})."
 
+    # Projected end-of-season counting totals and roto rankings
+    projected_totals = compute_projected_totals(
+        teams, start_date, end_date, today, total_games=total_games,
+    )
+    projected_ranks = compute_projected_roto_ranks(projected_totals, teams)
+
+    # Sort projections by rank for consistent ordering
+    projected_totals.sort(key=lambda r: (r["rank"] if r["rank"] is not None else 999))
+    projected_ranks.sort(key=lambda r: (
+        -(r["projected_total"] or 0),  # highest projected total first
+        r.get("rank") or 999,
+    ))
+
+    # Category display metadata for the frontend
+    counting_cat_meta = [{"key": c["key"], "display": c["display"]} for c in COUNTING_CATEGORIES]
+
     return {
         "rows": rows,
+        "projected_totals": projected_totals,
+        "projected_ranks": projected_ranks,
+        "counting_categories": counting_cat_meta,
         "start_str": start_str,
         "end_str": end_str,
         "total_games": total_games,
         "elapsed_days": elapsed_days,
         "remaining_days": remaining_days,
         "date_valid": date_valid,
+        "date_error": date_error,
+        "scraped_at": scraped_at,
+        "league_id": league_id,
+        "has_data": True,
+    }
+
+
+def _build_executive_summary_payload(
+    data: Optional[dict],
+    league_id: str,
+    selected_team: Optional[str],
+    start_str: str,
+    end_str: str,
+    start_date: date,
+    end_date: date,
+    total_games: int,
+    date_error: Optional[str],
+) -> dict[str, Any]:
+    """Build executive-summary payload for React clients."""
+    if data is None:
+        return {
+            "team_names": [],
+            "selected_team": None,
+            "summary_card": {},
+            "per_game_vs_raw_rows": [],
+            "per_game_vs_raw_label": None,
+            "category_opportunities": [],
+            "best_categories_to_target": [],
+            "categories_at_risk": [],
+            "multi_point_swings": [],
+            "games_pace": {},
+            "nearby_teams": [],
+            "nearby_team_insights": [],
+            "projected_standings": [],
+            "projected_finish": None,
+            "category_competition": [],
+            "category_stability": [],
+            "high_leverage_categories": [],
+            "actionable_insights": [],
+            "trade_hints": [],
+            "momentum": {
+                "available": False,
+                "message": "Historical snapshots are not available in the current dataset.",
+            },
+            "start_str": start_str,
+            "end_str": end_str,
+            "total_games": total_games,
+            "date_error": date_error,
+            "scraped_at": None,
+            "league_id": league_id,
+            "has_data": False,
+        }
+
+    teams = data.get("teams", [])
+    scraped_at = data.get("scraped_at")
+    today = date.today()
+
+    summary = build_executive_summary(
+        teams=teams,
+        selected_team=selected_team,
+        start_date=start_date,
+        end_date=end_date,
+        today_date=today,
+        total_games=total_games,
+    )
+
+    return {
+        **summary,
+        "start_str": start_str,
+        "end_str": end_str,
+        "total_games": total_games,
         "date_error": date_error,
         "scraped_at": scraped_at,
         "league_id": league_id,
@@ -525,6 +621,16 @@ def games_played():
     params = _parse_games_played_inputs(request.args)
     payload = _build_games_played_payload(load_standings(), league_id, **params)
     return render_template("games_played.html", **payload)
+
+
+@app.route("/executive-summary", methods=["GET"])
+def executive_summary():
+    """Render the executive summary page."""
+    if not _is_legacy_ui_mode():
+        return _render_react_or_503()
+
+    # Legacy template mode has no dedicated executive page.
+    return redirect("/analysis")
 
 
 # ---------------------------------------------------------------------------
@@ -664,6 +770,20 @@ def api_games_played():
     league_id = _get_league_id()
     params = _parse_games_played_inputs(request.args)
     payload = _build_games_played_payload(_get_standings(league_id), league_id, **params)
+    return jsonify(payload)
+
+
+@app.route("/api/executive-summary", methods=["GET"])
+def api_executive_summary():
+    """Return executive-summary payload for React clients."""
+    league_id = _get_league_id()
+    params = _parse_games_played_inputs(request.args)
+    payload = _build_executive_summary_payload(
+        _get_standings(league_id),
+        league_id,
+        request.args.get("team"),
+        **params,
+    )
     return jsonify(payload)
 
 

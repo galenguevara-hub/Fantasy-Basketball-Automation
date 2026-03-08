@@ -3,16 +3,17 @@
 ## Primary Docs
 
 - `README.md`: repo overview, deployment model, and supported runtime path
-- `docs/QUICKSTART.md`: fastest path to local shell, Docker Compose, and Fly.io
-- `docs/ARCHITECTURE.md`: runtime modes, Redis/session behavior, and deployment
-  topology
-- `docs/IMPLEMENTATION_SUMMARY.md`: current implementation and verification
+- `docs/QUICKSTART.md`: local shell, Docker Compose, and Fly.io startup path
+- `docs/ARCHITECTURE.md`: runtime flow, Redis keying/TTL behavior, and
+  deployment topology
+- `docs/IMPLEMENTATION_SUMMARY.md`: active endpoints, runtime behavior, and
+  analysis-layer semantics
 - `docs/CHANGELOG.md`: recent repo, deployment, and docs changes
 
 ## Frontend Doc
 
-- `frontend/README.md`: React routes, frontend build flow, and how the frontend
-  fits into Docker
+- `frontend/README.md`: route behavior, API contracts, analysis UI semantics,
+  and Docker/Fly frontend packaging
 
 ## Archive Doc
 
@@ -32,18 +33,20 @@
 - `src/fba/auth.py`: Yahoo OAuth and session handling
 - `src/fba/yahoo_api.py`: Yahoo Fantasy API client
 - `src/fba/normalize.py`: per-game normalization and re-ranking
-- `src/fba/analysis/category_targets.py`: layer-1 target analysis
-- `src/fba/analysis/cluster_leverage.py`: layer-2 cluster analysis
+- `src/fba/analysis/category_targets.py`: layer-1 target/defend scoring
+- `src/fba/analysis/cluster_leverage.py`: layer-2 cluster leverage scoring (v2
+  active, v1 retained)
 - `src/fba/analysis/games_played.py`: pace analysis
 - `scripts/start_server.sh`: default local startup
 - `scripts/start_dev.sh`: backend + Vite dev startup
 
 ## Current Verification Snapshot
 
-As of March 3, 2026:
+Latest recorded (March 3, 2026):
 
 - maintained calculation tests: `120 passed`
 - frontend production build: passed
 - full `./venv/bin/pytest -q` is still blocked in the checked-in `venv`
   because backend packages are missing there
-- Docker/Fly config was reviewed from checked-in files, not exercised live
+- Docker/Fly config was validated from checked-in files, not exercised live in
+  that pass

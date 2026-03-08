@@ -40,6 +40,9 @@ For the current React flow, this shell path expects a working Redis instance
 behind `REDIS_URL`. If you do not already have Redis running, use Docker
 Compose instead.
 
+Without `REDIS_URL`, the app still starts but refreshed standings are not
+persisted for React API reads.
+
 ## 4) Start The App (Docker Compose)
 
 For the new production-like local stack with Redis:
@@ -70,6 +73,13 @@ automatically.
 3. Complete Yahoo OAuth if prompted.
 4. The app refreshes standings through the Yahoo Fantasy API.
 
+Notes:
+
+- refresh is rate-limited per user to one request every 30 seconds when Redis
+  is enabled
+- on rate limit, the API returns `429` with `retry_after`, and the UI shows a
+  countdown
+
 ## 6) Frontend Dev Mode
 
 ```bash
@@ -90,9 +100,17 @@ Vite proxies `/api`, `/refresh`, `/auth`, and `/logout` to the Flask backend.
    `YAHOO_REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY`, and `REDIS_URL`.
 4. Deploy with the Fly CLI using the checked-in `fly.toml`.
 
+Current `fly.toml` highlights:
+
+- app: `roto-fantasy-solver`
+- region: `ord`
+- VM: `shared-cpu-1x`, `256mb`
+- min running machines: `1`
+- health check: `GET /api/auth/status`
+
 ## 8) Verification
 
-Verified on March 3, 2026:
+Latest recorded verification (March 3, 2026):
 
 ```bash
 ./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py

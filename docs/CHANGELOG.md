@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-03-07
+
+### Documentation sync to latest code behavior
+
+- Updated all primary knowledge docs (`README`, `QUICKSTART`, `ARCHITECTURE`,
+  `IMPLEMENTATION_SUMMARY`, `DOCS`, `frontend/README`) to match current
+  `main` runtime behavior.
+- Removed stale endpoint references (`GET /api/standings`) from docs.
+- Added current backend behavior details:
+  - per-user refresh cooldown in Redis (`30s`, `429` + `retry_after`)
+  - Redis standings cache key/TTL (`fba:standings:{user_id}:{league_id}`,
+    `3600s`)
+  - Redis league ID persistence key/TTL (`fba:league_id:{user_id}`, `1 year`)
+  - restore-on-login league ID behavior
+- Added current analysis behavior details:
+  - Layer 1 `TARGET`/`DEFEND` independence with `is_target` / `is_defend`
+  - Cluster v2 distance-weighted scoring as active output, with v1 retained
+  - top-3 target/defend semantics for both layers
+- Updated deployment docs to match checked-in config:
+  - Fly `min_machines_running = 1`
+  - Docker Compose Redis responsibilities (sessions/cache/cooldown/persistence)
+
 ## 2026-03-03
 
 ### Documentation refresh for deployment changes

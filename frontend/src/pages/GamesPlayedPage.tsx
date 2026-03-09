@@ -7,7 +7,7 @@ import { getGamesPlayed } from "../lib/api";
 import { formatFixed, toNumber } from "../lib/format";
 import { useAsyncData } from "../lib/useAsyncData";
 import type { CountingCategoryMeta, JsonRecord } from "../lib/types";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 const GAMES_COLUMNS = [
   { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
@@ -375,7 +375,7 @@ export function GamesPlayedPage() {
                 <DataTable
                   columns={projRanksColumns}
                   initialSort={{ key: "projected_total", desc: true }}
-                  rows={data.projected_ranks}
+                  rows={adjustedRanks}
                 />
               </section>
             </>

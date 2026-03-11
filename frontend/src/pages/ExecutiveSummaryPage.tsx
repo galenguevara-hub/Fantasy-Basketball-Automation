@@ -273,10 +273,7 @@ export function ExecutiveSummaryPage() {
                 <span className="metric-label">Per-Game Rank</span>
                 <strong className="dyn-value">{formatOrdinal(selectedVsRawRow?.per_game_rank)}</strong>
               </div>
-              <div className="metric-card">
-                <span className="metric-label">Rank Delta</span>
-                <strong className="dyn-value">{formatSigned(selectedVsRawRow?.difference, 0)}</strong>
-              </div>
+
               <div className="metric-card">
                 <span className="metric-label">Current Roto Pts</span>
                 <strong className="dyn-value">{formatCompact(selectedVsRawRow?.current_points, 1)}</strong>

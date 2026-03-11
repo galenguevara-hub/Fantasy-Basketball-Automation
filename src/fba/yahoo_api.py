@@ -71,6 +71,29 @@ class AuthError(YahooAPIError):
     pass
 
 
+def _parse_yahoo_error(exc: Exception) -> str:
+    """Extract a human-readable message from a Yahoo API exception.
+
+    Yahoo exceptions often contain raw bytes like b'{"error": {"description": "..."}}'.
+    Returns the description string if found, otherwise falls back to str(exc).
+    """
+    raw = str(exc)
+    # Strip leading b' ... ' wrapper from bytes repr
+    if raw.startswith("b'") or raw.startswith('b"'):
+        try:
+            raw = raw[2:-1].replace("\\n", "\n").replace("\\'", "'")
+        except Exception:
+            pass
+    try:
+        data = json.loads(raw)
+        description = data.get("error", {}).get("description", "")
+        if description:
+            return description
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    return raw
+
+
 def get_oauth_session() -> OAuth2:
     """Create and return a valid OAuth2 session for the legacy file-based flow.
 
@@ -259,7 +282,35 @@ def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
     full_league_id = f"{game_id}.l.{league_id}"
     logger.info(f"Fetching standings for league {full_league_id}...")
 
-    league = game.to_league(full_league_id)
+    try:
+        league = game.to_league(full_league_id)
+        settings = league.settings()
+    except Exception as exc:
+        msg = _parse_yahoo_error(exc)
+        if "not allowed" in msg.lower() or "not in this league" in msg.lower():
+            raise YahooAPIError(
+                f"League {league_id} not found or you are not a member of it. "
+                "Please check the league ID and make sure you have joined the league on Yahoo."
+            ) from exc
+        raise YahooAPIError(f"Could not load league {league_id}: {msg}") from exc
+
+    # Validate sport — this app only supports NBA fantasy basketball
+    game_code = settings.get("game_code", "")
+    if game_code and game_code != "nba":
+        sport_name = game_code.upper()
+        raise YahooAPIError(
+            f"League {league_id} is a {sport_name} league. "
+            "This app only supports NBA fantasy basketball leagues."
+        )
+
+    # Validate scoring type — this app only supports rotisserie (roto) scoring
+    scoring_type = settings.get("scoring_type", "")
+    if scoring_type and scoring_type != "roto":
+        type_name = {"head": "head-to-head", "point": "points-based"}.get(scoring_type, scoring_type)
+        raise YahooAPIError(
+            f"League {league_id} uses {type_name} scoring. "
+            "This app only supports rotisserie (roto) scoring leagues."
+        )
 
     # Get standings (rank, team name, total points)
     standings = league.standings()

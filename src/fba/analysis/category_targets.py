@@ -17,19 +17,15 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional
 
+from fba.category_config import (
+    CategoryConfig,
+    DEFAULT_8CAT_CONFIG,
+    get_analysis_keys,
+)
 
-# The 8 roto categories and the per-game row keys they correspond to.
-# Order matches the spec.
-CATEGORIES: list[dict[str, str]] = [
-    {"name": "FG%",   "key": "FG%",   "display": "FG%"},
-    {"name": "FT%",   "key": "FT%",   "display": "FT%"},
-    {"name": "3PM/G", "key": "3PM_pg", "display": "3PM/G"},
-    {"name": "PTS/G", "key": "PTS_pg", "display": "PTS/G"},
-    {"name": "REB/G", "key": "REB_pg", "display": "REB/G"},
-    {"name": "AST/G", "key": "AST_pg", "display": "AST/G"},
-    {"name": "STL/G", "key": "ST_pg",  "display": "STL/G"},
-    {"name": "BLK/G", "key": "BLK_pg", "display": "BLK/G"},
-]
+
+# Legacy constant — derived from DEFAULT_8CAT_CONFIG for backward compat.
+CATEGORIES: list[dict[str, str]] = get_analysis_keys(DEFAULT_8CAT_CONFIG)
 
 # Cap for score when z_gap_up == 0 (exact tie with team above).
 TIE_SCORE_CAP = 1000.0
@@ -50,20 +46,23 @@ N_DEFEND = 3
 
 def compute_category_sigma(
     rows: List[Dict[str, Any]],
+    category_config: Optional[List[CategoryConfig]] = None,
 ) -> Dict[str, Optional[float]]:
     """
     Compute population std dev (ddof=0) for each category across teams.
 
     Args:
         rows: List of per-game row dicts (from normalize.build_per_game_rows).
+        category_config: Optional dynamic config.
 
     Returns:
         Dict mapping category key -> sigma (float), or None if non-actionable
         (all values missing or zero variance).
     """
+    cats = get_analysis_keys(category_config) if category_config else CATEGORIES
     sigmas: Dict[str, Optional[float]] = {}
 
-    for cat in CATEGORIES:
+    for cat in cats:
         key = cat["key"]
         values = [row[key] for row in rows if row.get(key) is not None]
 
@@ -83,64 +82,58 @@ def compute_category_sigma(
 def _sorted_teams_for_category(
     rows: List[Dict[str, Any]],
     key: str,
+    higher_is_better: bool = True,
 ) -> List[Dict[str, Any]]:
     """
-    Sort teams by a category value, descending (best first).
+    Sort teams by a category value, best first.
     Teams with None values are excluded.
     Tie-break by team_name ascending for stability.
+
+    For higher-is-better categories, sorts descending.
+    For lower-is-better categories (e.g. TO), sorts ascending.
     """
     valid = [r for r in rows if r.get(key) is not None]
-    return sorted(valid, key=lambda r: (-r[key], r["team_name"]))
+    if higher_is_better:
+        return sorted(valid, key=lambda r: (-r[key], r["team_name"]))
+    else:
+        return sorted(valid, key=lambda r: (r[key], r["team_name"]))
 
 
 def compute_gaps_and_scores(
     rows: List[Dict[str, Any]],
+    category_config: Optional[List[CategoryConfig]] = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Compute gap-to-gain, buffer-to-lose, target score, and recommendations
-    for every team across all 8 categories.
+    for every team across all active categories.
+
+    Respects category directionality: for lower-is-better categories (e.g. TO),
+    "better" means a lower value and "gap_up" is how much you need to decrease.
 
     Args:
         rows: List of per-game row dicts.
+        category_config: Optional dynamic config.
 
     Returns:
-        Dict keyed by team_name, each value is a list of category analysis dicts:
-        [
-            {
-                "category": "FG%",
-                "display": "FG%",
-                "value": 0.476,
-                "rank": 3,
-                "next_better_team": "Team X",
-                "next_better_value": 0.482,
-                "gap_up": 0.006,
-                "z_gap_up": 0.45,
-                "next_worse_team": "Team Y",
-                "next_worse_value": 0.470,
-                "gap_down": 0.006,
-                "z_gap_down": 0.45,
-                "target_score": 2.33,
-                "tag": "TARGET",
-            },
-            ...
-        ]
+        Dict keyed by team_name, each value is a list of category analysis dicts.
     """
     if not rows:
         return {}
 
-    sigmas = compute_category_sigma(rows)
+    cats = get_analysis_keys(category_config) if category_config else CATEGORIES
+    sigmas = compute_category_sigma(rows, category_config)
 
     # Pre-compute sorted order and ranks per category.
     sorted_by_cat: Dict[str, List[Dict[str, Any]]] = {}
     ranks_by_cat: Dict[str, Dict[str, int]] = {}
 
-    for cat in CATEGORIES:
+    for cat in cats:
         key = cat["key"]
-        sorted_teams = _sorted_teams_for_category(rows, key)
+        hib = cat.get("higher_is_better", True)
+        sorted_teams = _sorted_teams_for_category(rows, key, hib)
         sorted_by_cat[key] = sorted_teams
 
         # Assign ranks: best = N (number of teams with values), worst = 1.
-        # Teams with None get no rank entry (handled as None later).
         n = len(sorted_teams)
         ranks: Dict[str, int] = {}
         for pos, team_row in enumerate(sorted_teams):
@@ -154,8 +147,9 @@ def compute_gaps_and_scores(
         team_name = row["team_name"]
         cat_analyses: List[Dict[str, Any]] = []
 
-        for cat in CATEGORIES:
+        for cat in cats:
             key = cat["key"]
+            hib = cat.get("higher_is_better", True)
             value = row.get(key)
             sigma = sigmas.get(key)
             sorted_teams = sorted_by_cat[key]
@@ -163,7 +157,6 @@ def compute_gaps_and_scores(
 
             rank = ranks.get(team_name)
 
-            # If this team has no value for this category, skip with Nones.
             if value is None:
                 cat_analyses.append(_none_entry(cat, rank))
                 continue
@@ -180,19 +173,21 @@ def compute_gaps_and_scores(
                 continue
 
             # --- Gap up (effort): find nearest team with strictly better value ---
+            # In sorted list, positions 0..team_pos-1 are better teams.
             next_better_team = None
             next_better_value = None
             gap_up = None
             z_gap_up = None
 
-            # Look backwards in sorted list (positions 0..team_pos-1) for
-            # strictly better value.
             for j in range(team_pos - 1, -1, -1):
                 candidate = sorted_teams[j]
-                if candidate[key] > value:
+                cv = candidate[key]
+                # "strictly better" depends on directionality
+                is_strictly_better = (cv > value) if hib else (cv < value)
+                if is_strictly_better:
                     next_better_team = candidate["team_name"]
-                    next_better_value = candidate[key]
-                    gap_up = candidate[key] - value
+                    next_better_value = cv
+                    gap_up = abs(cv - value)
                     break
 
             if gap_up is not None and sigma is not None and sigma > 0:
@@ -206,10 +201,12 @@ def compute_gaps_and_scores(
 
             for j in range(team_pos + 1, len(sorted_teams)):
                 candidate = sorted_teams[j]
-                if candidate[key] < value:
+                cv = candidate[key]
+                is_strictly_worse = (cv < value) if hib else (cv > value)
+                if is_strictly_worse:
                     next_worse_team = candidate["team_name"]
-                    next_worse_value = candidate[key]
-                    gap_down = value - candidate[key]
+                    next_worse_value = cv
+                    gap_down = abs(value - cv)
                     break
 
             if gap_down is not None and sigma is not None and sigma > 0:
@@ -233,7 +230,7 @@ def compute_gaps_and_scores(
                 "gap_down": gap_down,
                 "z_gap_down": z_gap_down,
                 "target_score": target_score,
-                "tag": None,  # filled in below
+                "tag": None,
                 "is_target": False,
                 "is_defend": False,
             })

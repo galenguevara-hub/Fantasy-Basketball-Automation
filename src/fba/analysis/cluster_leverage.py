@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from fba.category_config import CategoryConfig, DEFAULT_8CAT_CONFIG, get_analysis_keys
 from fba.analysis.category_targets import CATEGORIES, compute_category_sigma
 
 # Default effort threshold in z-score units.
@@ -41,23 +42,27 @@ def _safe_mean(values: List[float]) -> Optional[float]:
     return sum(values) / len(values) if values else None
 
 
-def compute_tiers(values_by_team: Dict[str, Optional[float]]) -> List[float]:
+def compute_tiers(
+    values_by_team: Dict[str, Optional[float]],
+    higher_is_better: bool = True,
+) -> List[float]:
     """
     Build an ordered list of distinct tier values from a team-value mapping.
 
-    Returns distinct non-None values sorted descending (best first).
-    Two teams with the same value occupy the same tier; crossing a tier
-    boundary represents exactly one roto-point gain or loss.
+    Returns distinct non-None values sorted best-first.
+    For higher-is-better: descending (highest first).
+    For lower-is-better: ascending (lowest first).
 
     Args:
         values_by_team: Dict mapping team_name -> category value (or None).
+        higher_is_better: Sort direction.
 
     Returns:
-        Sorted list of distinct non-None values, highest first.
+        Sorted list of distinct non-None values, best first.
     """
     distinct = sorted(
         {v for v in values_by_team.values() if v is not None},
-        reverse=True,
+        reverse=higher_is_better,
     )
     return distinct
 
@@ -65,6 +70,7 @@ def compute_tiers(values_by_team: Dict[str, Optional[float]]) -> List[float]:
 def compute_cluster_metrics(
     rows: List[Dict[str, Any]],
     T: float = T_DEFAULT,
+    category_config: Optional[List[CategoryConfig]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Compute cluster leverage metrics for every team across all 8 categories.
@@ -100,20 +106,22 @@ def compute_cluster_metrics(
     if not rows:
         return {}
 
-    sigmas = compute_category_sigma(rows)
+    cats = get_analysis_keys(category_config) if category_config else CATEGORIES
+    sigmas = compute_category_sigma(rows, category_config)
 
     result: Dict[str, Dict[str, Any]] = {}
 
-    for cat in CATEGORIES:
+    for cat in cats:
         key = cat["key"]
         cat_name = cat["name"]
+        hib = cat.get("higher_is_better", True)
         sigma = sigmas.get(key)
 
         # Build tier structure for this category.
         values_by_team: Dict[str, Optional[float]] = {
             r["team_name"]: r.get(key) for r in rows
         }
-        tier_values = compute_tiers(values_by_team)
+        tier_values = compute_tiers(values_by_team, hib)
         value_to_tier_idx: Dict[float, int] = {
             v: i for i, v in enumerate(tier_values)
         }
@@ -134,11 +142,13 @@ def compute_cluster_metrics(
             tier_idx = value_to_tier_idx[x_i]
 
             # z required to reach tier k positions above (None if impossible).
+            # Tiers are sorted best-first, so gain = moving toward index 0.
+            # z = absolute distance / sigma.
             def _z_gain(k: int) -> Optional[float]:
                 target = tier_idx - k
                 if target < 0:
                     return None
-                return (tier_values[target] - x_i) / sigma  # type: ignore[operator]
+                return abs(tier_values[target] - x_i) / sigma  # type: ignore[operator]
 
             z_to_gain_1 = _z_gain(1)
             z_to_gain_2 = _z_gain(2)
@@ -149,7 +159,7 @@ def compute_cluster_metrics(
                 target = tier_idx + k
                 if target >= n_tiers:
                     return None
-                return (x_i - tier_values[target]) / sigma  # type: ignore[operator]
+                return abs(x_i - tier_values[target]) / sigma  # type: ignore[operator]
 
             z_to_lose_1 = _z_lose(1)
             z_to_lose_2 = _z_lose(2)
@@ -157,14 +167,14 @@ def compute_cluster_metrics(
 
             # Collect reachable z-distances and count tiers within threshold.
             reachable_up = [
-                (tier_values[j] - x_i) / sigma  # type: ignore[operator]
+                abs(tier_values[j] - x_i) / sigma  # type: ignore[operator]
                 for j in range(tier_idx)
-                if (tier_values[j] - x_i) / sigma <= T  # type: ignore[operator]
+                if abs(tier_values[j] - x_i) / sigma <= T  # type: ignore[operator]
             ]
             reachable_down = [
-                (x_i - tier_values[j]) / sigma  # type: ignore[operator]
+                abs(x_i - tier_values[j]) / sigma  # type: ignore[operator]
                 for j in range(tier_idx + 1, n_tiers)
-                if (x_i - tier_values[j]) / sigma <= T  # type: ignore[operator]
+                if abs(x_i - tier_values[j]) / sigma <= T  # type: ignore[operator]
             ]
 
             points_up = len(reachable_up)

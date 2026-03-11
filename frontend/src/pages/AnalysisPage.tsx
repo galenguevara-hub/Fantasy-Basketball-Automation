@@ -12,12 +12,21 @@ const CAT_CLASS_MAP: Record<string, string> = {
   "FG%": "cat-fg",
   "FT%": "cat-ft",
   "3PM/G": "cat-3pm",
+  "3PT%": "cat-3pt",
   "PTS/G": "cat-pts",
   "REB/G": "cat-reb",
   "AST/G": "cat-ast",
   "STL/G": "cat-stl",
-  "BLK/G": "cat-blk"
+  "BLK/G": "cat-blk",
+  "TO/G": "cat-to",
 };
+
+function getCatClass(category: string): string {
+  if (CAT_CLASS_MAP[category]) return CAT_CLASS_MAP[category];
+  // Dynamic fallback: slugify the category name
+  const slug = category.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return `cat-${slug}`;
+}
 
 
 function normalizeCategory(value: unknown): string | null {
@@ -49,7 +58,7 @@ function renderCategoryList(value: unknown) {
   return (
     <div className="tag-list">
       {categories.map((category) => (
-        <span key={category} className={`tag ${CAT_CLASS_MAP[category] ?? ""}`}>
+        <span key={category} className={`tag ${getCatClass(category)}`}>
           {category.replace("/G", "")}
         </span>
       ))}
@@ -253,7 +262,7 @@ export function AnalysisPage() {
                       .map((row, i) => (
                         <span key={`target-${row.category}`} className="summary-item">
                           <span className="summary-rank">{i + 1}.</span>
-                          <span className={`tag ${CAT_CLASS_MAP[row.category] ?? ""}`}>{row.display.replace("/G", "")}</span>
+                          <span className={`tag ${getCatClass(row.category)}`}>{row.display.replace("/G", "")}</span>
                         </span>
                       ))}
                   </div>
@@ -271,7 +280,7 @@ export function AnalysisPage() {
                         .map((row, i) => (
                           <span key={`ct-${String(row.category)}`} className="summary-item">
                             <span className="summary-rank">{i + 1}.</span>
-                            <span className={`tag ${CAT_CLASS_MAP[String(row.category)] ?? ""}`}>{String(row.display).replace("/G", "")}</span>
+                            <span className={`tag ${getCatClass(String(row.category))}`}>{String(row.display).replace("/G", "")}</span>
                           </span>
                         ))}
                     </div>
@@ -288,7 +297,7 @@ export function AnalysisPage() {
                       .map((row, i) => (
                         <span key={`defend-${row.category}`} className="summary-item">
                           <span className="summary-rank">{i + 1}.</span>
-                          <span className={`tag ${CAT_CLASS_MAP[row.category] ?? ""}`}>{row.display.replace("/G", "")}</span>
+                          <span className={`tag ${getCatClass(row.category)}`}>{row.display.replace("/G", "")}</span>
                         </span>
                       ))}
                   </div>
@@ -306,7 +315,7 @@ export function AnalysisPage() {
                         .map((row, i) => (
                           <span key={`cd-${String(row.category)}`} className="summary-item">
                             <span className="summary-rank">{i + 1}.</span>
-                            <span className={`tag ${CAT_CLASS_MAP[String(row.category)] ?? ""}`}>{String(row.display).replace("/G", "")}</span>
+                            <span className={`tag ${getCatClass(String(row.category))}`}>{String(row.display).replace("/G", "")}</span>
                           </span>
                         ))}
                     </div>

@@ -13,6 +13,7 @@ const CAT_CLASS_MAP: Record<string, string> = {
   "FT%": "cat-ft",
   "3PM": "cat-3pm",
   "3PM/G": "cat-3pm",
+  "3PT%": "cat-3pt",
   "PTS": "cat-pts",
   "PTS/G": "cat-pts",
   "REB": "cat-reb",
@@ -23,7 +24,15 @@ const CAT_CLASS_MAP: Record<string, string> = {
   "STL/G": "cat-stl",
   "BLK": "cat-blk",
   "BLK/G": "cat-blk",
+  "TO": "cat-to",
+  "TO/G": "cat-to",
 };
+
+function getCatClass(category: string): string {
+  if (CAT_CLASS_MAP[category]) return CAT_CLASS_MAP[category];
+  const slug = category.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return `cat-${slug}`;
+}
 
 function asRows(value: unknown): JsonRecord[] {
   return Array.isArray(value) ? (value as JsonRecord[]) : [];
@@ -54,7 +63,7 @@ function formatOrdinal(value: unknown): string {
 
 function renderCategoryChip(label: string, key: string) {
   return (
-    <span key={key} className={`tag ${CAT_CLASS_MAP[label] ?? ""}`}>
+    <span key={key} className={`tag ${getCatClass(label)}`}>
       {label.replace("/G", "")}
     </span>
   );

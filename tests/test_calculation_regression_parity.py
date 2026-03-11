@@ -250,7 +250,7 @@ def test_overview_fields_follow_expected_calculations(regression_client):
         assert row["GP"] == gp
         assert row["FG%"] == pytest.approx(_to_float(team["stats"]["FG%"]), abs=1e-12)
         assert row["FT%"] == pytest.approx(_to_float(team["stats"]["FT%"]), abs=1e-12)
-        assert row["3PM_pg"] == pytest.approx(_to_float(team["stats"]["3PTM"]) / gp, abs=1e-12)
+        assert row["3PTM_pg"] == pytest.approx(_to_float(team["stats"]["3PTM"]) / gp, abs=1e-12)
         assert row["PTS_pg"] == pytest.approx(_to_float(team["stats"]["PTS"]) / gp, abs=1e-12)
         assert row["REB_pg"] == pytest.approx(_to_float(team["stats"]["REB"]) / gp, abs=1e-12)
         assert row["AST_pg"] == pytest.approx(_to_float(team["stats"]["AST"]) / gp, abs=1e-12)
@@ -261,7 +261,7 @@ def test_overview_fields_follow_expected_calculations(regression_client):
         cat_ranks = [
             row["FG%_Rank"],
             row["FT%_Rank"],
-            row["3PM_Rank"],
+            row["3PTM_Rank"],
             row["PTS_Rank"],
             row["REB_Rank"],
             row["AST_Rank"],
@@ -327,13 +327,13 @@ def test_analysis_and_cluster_fields_follow_expected_calculations(regression_cli
     for category_name, metrics in selected_cluster.items():
         expected = all_cluster[selected_team][category_name]
         assert metrics == expected
-        if metrics["cluster_up_score"] is not None:
-            assert metrics["cluster_up_score"] == pytest.approx(
+        if metrics["cluster_up_score_v1"] is not None:
+            assert metrics["cluster_up_score_v1"] == pytest.approx(
                 metrics["points_up_within_T"] / metrics["T"],
                 abs=1e-12,
             )
-        if metrics["cluster_down_risk"] is not None:
-            assert metrics["cluster_down_risk"] == pytest.approx(
+        if metrics["cluster_down_risk_v1"] is not None:
+            assert metrics["cluster_down_risk_v1"] == pytest.approx(
                 metrics["points_down_within_T"] / metrics["T"],
                 abs=1e-12,
             )
@@ -352,7 +352,7 @@ def test_analysis_and_cluster_fields_follow_expected_calculations(regression_cli
         assert targets == sorted(targets, key=lambda item: -(item["target_score"] or 0))
 
         defends = row["defends"]
-        assert defends == sorted(defends, key=lambda item: -(item["target_score"] or 0))
+        assert defends == sorted(defends, key=lambda item: (item["z_gap_down"] if item["z_gap_down"] is not None else float("inf")))
 
         team_cluster = all_cluster[row["team_name"]]
         expected_cluster_targets = sorted(

@@ -15,10 +15,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from typing import List
+
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from yahoo_oauth import OAuth2
 from yahoo_fantasy_api import Game
+
+from fba.category_config import (
+    CategoryConfig,
+    KNOWN_STATS,
+    DEFAULT_8CAT_CONFIG,
+    build_category_config_from_raw,
+    build_stat_id_map,
+    to_serializable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,21 +37,12 @@ _DATA_DIR = Path(__file__).parent.parent.parent / "data"
 OAUTH_FILE = _DATA_DIR / "oauth2.json"
 STANDINGS_FILE = _DATA_DIR / "standings.json"
 
-# Yahoo stat_id → display name mapping for NBA
-STAT_ID_MAP = {
-    0: "GP",
-    5: "FG%",
-    8: "FT%",
-    10: "3PTM",
-    12: "PTS",
-    15: "REB",
-    16: "AST",
-    17: "ST",
-    18: "BLK",
-}
+# Legacy compat: flat stat_id → display name mapping (used by tests and
+# as fallback when no dynamic config is available).
+STAT_ID_MAP = {sid: meta["key"] for sid, meta in KNOWN_STATS.items()}
 
-# The 8 roto scoring categories (higher is always better)
-ROTO_CATEGORIES = ["FG%", "FT%", "3PTM", "PTS", "REB", "AST", "ST", "BLK"]
+# Legacy compat: 8-cat roto list (replaced by dynamic config at runtime).
+ROTO_CATEGORIES = [c.key for c in DEFAULT_8CAT_CONFIG]
 
 
 def _configure_session_retries(session) -> None:
@@ -142,11 +144,22 @@ def is_authenticated() -> bool:
         return False
 
 
-def _get_team_stats_raw(session, team_key: str) -> dict:
+def _get_team_stats_raw(
+    session,
+    team_key: str,
+    stat_id_configs: Optional[dict[int, CategoryConfig]] = None,
+) -> dict:
     """Fetch full stats for a team via the raw Yahoo API.
 
-    Returns dict mapping stat display name to value (e.g., {"GP": 666, "FG%": 0.476, ...}).
+    Returns dict mapping stat canonical key to value (e.g., {"GP": 666, "FG%": 0.476, ...}).
     Uses the team stats endpoint which includes GP (stat_id 0) that the library filters out.
+
+    Args:
+        session: Authenticated requests session.
+        team_key: Yahoo team key string.
+        stat_id_configs: Optional {stat_id: CategoryConfig} map. When provided,
+            only stats matching these IDs are ingested (plus GP=0).
+            Falls back to the legacy STAT_ID_MAP when None.
     """
     url = (
         f"https://fantasysports.yahooapis.com/fantasy/v2"
@@ -162,75 +175,108 @@ def _get_team_stats_raw(session, team_key: str) -> dict:
     team_data = data["fantasy_content"]["team"]
     raw_stats = team_data[1]["team_stats"]["stats"]
 
+    # Build the set of stat_ids to ingest (scoring categories + GP)
+    if stat_id_configs is not None:
+        allowed_ids = set(stat_id_configs.keys()) | {0}  # always include GP
+    else:
+        allowed_ids = set(STAT_ID_MAP.keys())
+
     stats = {}
     for entry in raw_stats:
         stat_id = entry["stat"]["stat_id"]
         value = entry["stat"]["value"]
 
-        # stat_id can be int or str depending on position in response
         stat_id_int = int(stat_id) if isinstance(stat_id, str) else stat_id
 
-        if stat_id_int in STAT_ID_MAP:
-            name = STAT_ID_MAP[stat_id_int]
-            # Convert to appropriate type
+        if stat_id_int not in allowed_ids:
+            continue
+
+        # GP is always an integer
+        if stat_id_int == 0:
+            stats["GP"] = int(value) if value else 0
+            continue
+
+        # Determine type from config or fallback
+        if stat_id_configs and stat_id_int in stat_id_configs:
+            cfg = stat_id_configs[stat_id_int]
+            name = cfg.key
+            if cfg.is_percentage:
+                stats[name] = float(value) if value else 0.0
+            else:
+                stats[name] = int(float(value)) if value else 0
+        else:
+            # Legacy fallback
+            name = STAT_ID_MAP.get(stat_id_int)
+            if name is None:
+                continue
             if name in ("FG%", "FT%"):
                 stats[name] = float(value) if value else 0.0
-            elif name == "GP":
-                stats[name] = int(value) if value else 0
             else:
                 stats[name] = int(float(value)) if value else 0
 
     return stats
 
 
-def compute_roto_points(teams_data: list[dict]) -> dict:
+def compute_roto_points(
+    teams_data: list[dict],
+    category_config: Optional[List[CategoryConfig]] = None,
+) -> dict:
     """Compute per-category roto points for each team.
 
     In roto scoring, teams are ranked 1-N in each category.
-    Highest value gets N points, lowest gets 1. Ties get averaged ranks.
+    Best value gets N points, worst gets 1. Ties get averaged ranks.
+    Respects category directionality (higher_is_better).
 
     Args:
         teams_data: List of dicts with "team_name" and "stats" keys.
+        category_config: Optional dynamic category config. Falls back to
+            ROTO_CATEGORIES (8-cat, all higher-is-better) when None.
 
     Returns:
         Dict mapping team_name → {category: roto_points}.
     """
-    n = len(teams_data)
-    roto = {t["team_name"]: {} for t in teams_data}
+    if category_config is not None:
+        cats = [(c.key, c.higher_is_better) for c in category_config]
+    else:
+        cats = [(c, True) for c in ROTO_CATEGORIES]
 
-    for cat in ROTO_CATEGORIES:
+    roto: dict[str, dict] = {t["team_name"]: {} for t in teams_data}
+
+    for cat_key, higher_is_better in cats:
         # Collect (value, team_name) pairs, skip teams with missing data
         entries = []
         for t in teams_data:
-            val = t["stats"].get(cat)
+            val = t["stats"].get(cat_key)
             if val is not None:
                 entries.append((float(val), t["team_name"]))
 
-        # Sort ascending (lowest value = lowest rank = fewest roto points)
-        entries.sort(key=lambda x: (x[0], x[1]))
+        # Sort so that worst value comes first (rank 1) and best comes last (rank N).
+        # For higher-is-better: ascending sort (lowest = worst).
+        # For lower-is-better: descending sort (highest = worst).
+        if higher_is_better:
+            entries.sort(key=lambda x: (x[0], x[1]))
+        else:
+            entries.sort(key=lambda x: (-x[0], x[1]))
 
         # Assign ranks with tie averaging
         i = 0
         while i < len(entries):
-            # Find all teams tied at this value
             j = i
             while j < len(entries) and entries[j][0] == entries[i][0]:
                 j += 1
 
-            # Average rank for tied teams (1-indexed)
             avg_rank = sum(range(i + 1, j + 1)) / (j - i)
 
             for k in range(i, j):
                 team_name = entries[k][1]
-                # Roto points = rank (1..N where N=best)
-                roto[team_name][cat] = avg_rank if avg_rank != int(avg_rank) else int(avg_rank)
+                roto[team_name][cat_key] = avg_rank if avg_rank != int(avg_rank) else int(avg_rank)
 
             i = j
 
         # Teams with missing data get rank 1 (worst)
         for t in teams_data:
-            if cat not in roto[t["team_name"]]:
-                roto[t["team_name"]][cat] = 1
+            if cat_key not in roto[t["team_name"]]:
+                roto[t["team_name"]][cat_key] = 1
 
     return roto
 
@@ -264,9 +310,29 @@ def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
     # Get standings (rank, team name, total points)
     standings = league.standings()
 
-    # Get stat categories from the league
-    stat_cats = league.stat_categories()
-    categories = [cat["display_name"] for cat in stat_cats]
+    # ── Build dynamic category config from raw league settings ──
+    raw_settings = league.yhandler.get_settings_raw(league.league_id)
+    category_config = build_category_config_from_raw(raw_settings)
+
+    if not category_config:
+        # Fallback: use library's stat_categories() + legacy matching
+        stat_cats = league.stat_categories()
+        from fba.category_config import build_category_config_from_list
+        category_config = build_category_config_from_list(
+            [{"display_name": c["display_name"]} for c in stat_cats]
+        )
+
+    if not category_config:
+        logger.warning("Could not determine league categories; using default 8-cat config")
+        category_config = list(DEFAULT_8CAT_CONFIG)
+
+    logger.info(
+        f"League categories ({len(category_config)}): "
+        f"{[c.key for c in category_config]}"
+    )
+
+    # Build stat_id filter for team stat ingestion
+    stat_id_configs = build_stat_id_map(category_config)
 
     # Fetch full stats for each team (including GP via raw API)
     teams_data = []
@@ -282,7 +348,7 @@ def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
             pts_change = 0
 
         logger.info(f"  Fetching stats for {team_name}...")
-        stats = _get_team_stats_raw(oauth.session, team_key)
+        stats = _get_team_stats_raw(oauth.session, team_key, stat_id_configs)
 
         teams_data.append({
             "team_key": team_key,
@@ -293,8 +359,8 @@ def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
             "stats": stats,
         })
 
-    # Compute per-category roto points
-    roto = compute_roto_points(teams_data)
+    # Compute per-category roto points using dynamic config
+    roto = compute_roto_points(teams_data, category_config)
 
     # Build final output matching standings.json format
     teams = []
@@ -315,7 +381,10 @@ def fetch_standings(league_id: str, oauth: Optional[OAuth2] = None) -> dict:
 
     result = {
         "scraped_at": datetime.now(timezone.utc).isoformat(),
-        "league": {"categories": [{"display_name": cat} for cat in categories]},
+        "league": {
+            "categories": [{"display_name": c.display} for c in category_config],
+            "category_config": to_serializable(category_config),
+        },
         "teams": teams,
     }
 

@@ -710,6 +710,16 @@ details[open] > .analysis-key-title {
   color: #991b1b;
 }
 
+.cat-to {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+.cat-3pt {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
 .delta {
   font-weight: 600;
 }

@@ -173,6 +173,7 @@ def build_auth_url() -> str:
         "redirect_uri": Config.YAHOO_REDIRECT_URI,
         "response_type": "code",
         "language": "en-us",
+
     }
     url = f"{YAHOO_AUTH_URL}?{urlencode(params)}"
     logger.info("OAuth authorization URL: %s", url)

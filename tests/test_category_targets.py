@@ -38,7 +38,7 @@ def _make_row(
         "total_points": None,
         "FG%": fg,
         "FT%": ft,
-        "3PM_pg": threes,
+        "3PTM_pg": threes,
         "PTS_pg": pts,
         "REB_pg": reb,
         "AST_pg": ast,

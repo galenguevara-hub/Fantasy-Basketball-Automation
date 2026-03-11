@@ -23,6 +23,7 @@ export interface OverviewPayload {
   league_id: string;
   scraped_at: string | null;
   categories: string[];
+  category_config?: CategoryMeta[];
   teams: TeamRow[];
   per_game_rows: JsonRecord[];
   ranking_rows: JsonRecord[];
@@ -57,6 +58,17 @@ export interface AnalysisPayload {
   team_cluster: Record<string, JsonRecord>;
   team_pg_rank: Record<string, string>;
   league_summary: JsonRecord[];
+}
+
+export interface CategoryMeta {
+  key: string;
+  display: string;
+  stat_id: number;
+  higher_is_better: boolean;
+  is_percentage: boolean;
+  per_game_key: string | null;
+  per_game_display: string;
+  rank_key: string;
 }
 
 export interface CountingCategoryMeta {

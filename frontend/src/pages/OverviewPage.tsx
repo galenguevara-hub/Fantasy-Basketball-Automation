@@ -1,118 +1,149 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { AppShell } from "../components/AppShell";
 import { DataTable } from "../components/DataTable";
 import { StatusPanel } from "../components/StatusPanel";
 import { getOverview, refreshStandings } from "../lib/api";
 import { formatCompact, formatFixed, toNumber } from "../lib/format";
-import type { TeamRow } from "../lib/types";
+import type { CategoryMeta, TeamRow } from "../lib/types";
 import { useAsyncData } from "../lib/useAsyncData";
 
-const OVERALL_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
-  { key: "rank", label: "Rank", align: "right" as const },
-  { key: "GP", label: "GP", align: "right" as const },
-  { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "3PM", label: "3PM", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "PTS", label: "PTS", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "REB", label: "REB", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "AST", label: "AST", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "STL", label: "STL", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "BLK", label: "BLK", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "total_points", label: "Total", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) }
+// Fallback 8-cat config if backend doesn't provide category_config
+const FALLBACK_CONFIG: CategoryMeta[] = [
+  { key: "FG%", display: "FG%", stat_id: 5, higher_is_better: true, is_percentage: true, per_game_key: null, per_game_display: "FG%", rank_key: "FG%_Rank" },
+  { key: "FT%", display: "FT%", stat_id: 8, higher_is_better: true, is_percentage: true, per_game_key: null, per_game_display: "FT%", rank_key: "FT%_Rank" },
+  { key: "3PTM", display: "3PM", stat_id: 10, higher_is_better: true, is_percentage: false, per_game_key: "3PTM_pg", per_game_display: "3PM/G", rank_key: "3PTM_Rank" },
+  { key: "PTS", display: "PTS", stat_id: 12, higher_is_better: true, is_percentage: false, per_game_key: "PTS_pg", per_game_display: "PTS/G", rank_key: "PTS_Rank" },
+  { key: "REB", display: "REB", stat_id: 15, higher_is_better: true, is_percentage: false, per_game_key: "REB_pg", per_game_display: "REB/G", rank_key: "REB_Rank" },
+  { key: "AST", display: "AST", stat_id: 16, higher_is_better: true, is_percentage: false, per_game_key: "AST_pg", per_game_display: "AST/G", rank_key: "AST_Rank" },
+  { key: "ST", display: "STL", stat_id: 17, higher_is_better: true, is_percentage: false, per_game_key: "ST_pg", per_game_display: "STL/G", rank_key: "ST_Rank" },
+  { key: "BLK", display: "BLK", stat_id: 18, higher_is_better: true, is_percentage: false, per_game_key: "BLK_pg", per_game_display: "BLK/G", rank_key: "BLK_Rank" },
 ];
 
-const PER_GAME_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
-  { key: "rank", label: "Rank", align: "right" as const },
-  { key: "GP", label: "GP", align: "right" as const },
-  { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FG%_roto"] ?? row["FG%"] },
-  { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FT%_roto"] ?? row["FT%"] },
-  { key: "3PM_pg", label: "3PM/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-  { key: "PTS_pg", label: "PTS/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-  { key: "REB_pg", label: "REB/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-  { key: "AST_pg", label: "AST/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-  { key: "ST_pg", label: "STL/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-  { key: "BLK_pg", label: "BLK/G", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) }
-];
-
-const OVERALL_STATS_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
-  { key: "rank", label: "Rank", align: "right" as const },
-  { key: "GP", label: "GP", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "FG%", label: "FG%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FG%_roto"] ?? row["FG%"] },
-  { key: "FT%", label: "FT%", align: "right" as const, render: (value: unknown) => formatFixed(value, 3), sortValue: (_: unknown, row: Record<string, unknown>) => row["FT%_roto"] ?? row["FT%"] },
-  { key: "3PM", label: "3PM", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "PTS", label: "PTS", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "REB", label: "REB", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "AST", label: "AST", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "STL", label: "STL", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-  { key: "BLK", label: "BLK", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) }
-];
-
-const RANKING_COLUMNS = [
-  { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
-  { key: "rank", label: "Rank", align: "right" as const },
-  { key: "GP", label: "GP", align: "right" as const },
-  { key: "FG%_Rank", label: "FG%", align: "right" as const },
-  { key: "FT%_Rank", label: "FT%", align: "right" as const },
-  { key: "3PM_Rank", label: "3PM", align: "right" as const },
-  { key: "PTS_Rank", label: "PTS", align: "right" as const },
-  { key: "REB_Rank", label: "REB", align: "right" as const },
-  { key: "AST_Rank", label: "AST", align: "right" as const },
-  { key: "ST_Rank", label: "STL", align: "right" as const },
-  { key: "BLK_Rank", label: "BLK", align: "right" as const },
-  { key: "rank_total", label: "Total", align: "right" as const, headerClassName: "col-total", cellClassName: "col-total" },
-  {
-    key: "points_delta",
-    label: "Delta Total",
-    align: "right" as const,
-    headerClassName: "col-total",
-    cellClassName: "col-total",
-    render: (value: unknown) => {
-      const num = toNumber(value);
-      if (num === null) {
-        return "—";
-      }
-      const sign = num > 0 ? "+" : "";
-      return `${sign}${num.toLocaleString("en-US", { maximumFractionDigits: 1 })}`;
-    }
-  }
-];
-
-function toOverallRows(teams: TeamRow[]) {
-  return teams.map((team) => ({
-    rank: team.rank,
-    team_name: team.team_name,
-    GP: team.stats.GP,
-    "FG%": team.roto_points["FG%"],
-    "FT%": team.roto_points["FT%"],
-    "3PM": team.roto_points["3PTM"],
-    PTS: team.roto_points.PTS,
-    REB: team.roto_points.REB,
-    AST: team.roto_points.AST,
-    STL: team.roto_points.ST,
-    BLK: team.roto_points.BLK,
-    total_points: team.total_points
-  }));
+function buildOverallColumns(config: CategoryMeta[]) {
+  return [
+    { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
+    { key: "rank", label: "Rank", align: "right" as const },
+    { key: "GP", label: "GP", align: "right" as const },
+    ...config.map((c) => ({
+      key: c.key,
+      label: c.display,
+      align: "right" as const,
+      render: (value: unknown) => formatCompact(value, 1),
+    })),
+    { key: "total_points", label: "Total", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
+  ];
 }
 
-function toOverallStatsRows(teams: TeamRow[]) {
-  return teams.map((team) => ({
-    rank: team.rank,
-    team_name: team.team_name,
-    GP: team.stats.GP,
-    "FG%": team.stats["FG%"],
-    "FG%_roto": team.roto_points["FG%"],
-    "FT%": team.stats["FT%"],
-    "FT%_roto": team.roto_points["FT%"],
-    "3PM": team.stats["3PTM"],
-    PTS: team.stats.PTS,
-    REB: team.stats.REB,
-    AST: team.stats.AST,
-    STL: team.stats.ST,
-    BLK: team.stats.BLK
-  }));
+function buildPerGameColumns(config: CategoryMeta[]) {
+  return [
+    { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
+    { key: "rank", label: "Rank", align: "right" as const },
+    { key: "GP", label: "GP", align: "right" as const },
+    ...config.map((c) => {
+      const dataKey = c.per_game_key ?? c.key;
+      if (c.is_percentage) {
+        return {
+          key: dataKey,
+          label: c.per_game_display,
+          align: "right" as const,
+          render: (value: unknown) => formatFixed(value, 3),
+          sortValue: (_: unknown, row: Record<string, unknown>) => row[`${c.key}_roto`] ?? row[c.key],
+        };
+      }
+      return {
+        key: dataKey,
+        label: c.per_game_display,
+        align: "right" as const,
+        render: (value: unknown) => formatFixed(value, 3),
+      };
+    }),
+  ];
+}
+
+function buildOverallStatsColumns(config: CategoryMeta[]) {
+  return [
+    { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
+    { key: "rank", label: "Rank", align: "right" as const },
+    { key: "GP", label: "GP", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
+    ...config.map((c) => {
+      if (c.is_percentage) {
+        return {
+          key: c.key,
+          label: c.display,
+          align: "right" as const,
+          render: (value: unknown) => formatFixed(value, 3),
+          sortValue: (_: unknown, row: Record<string, unknown>) => row[`${c.key}_roto`] ?? row[c.key],
+        };
+      }
+      return {
+        key: c.key,
+        label: c.display,
+        align: "right" as const,
+        render: (value: unknown) => formatCompact(value, 1),
+      };
+    }),
+  ];
+}
+
+function buildRankingColumns(config: CategoryMeta[]) {
+  return [
+    { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
+    { key: "rank", label: "Rank", align: "right" as const },
+    { key: "GP", label: "GP", align: "right" as const },
+    ...config.map((c) => ({
+      key: c.rank_key,
+      label: c.display,
+      align: "right" as const,
+    })),
+    { key: "rank_total", label: "Total", align: "right" as const, headerClassName: "col-total", cellClassName: "col-total" },
+    {
+      key: "points_delta",
+      label: "Delta Total",
+      align: "right" as const,
+      headerClassName: "col-total",
+      cellClassName: "col-total",
+      render: (value: unknown) => {
+        const num = toNumber(value);
+        if (num === null) {
+          return "—";
+        }
+        const sign = num > 0 ? "+" : "";
+        return `${sign}${num.toLocaleString("en-US", { maximumFractionDigits: 1 })}`;
+      },
+    },
+  ];
+}
+
+function toOverallRows(teams: TeamRow[], config: CategoryMeta[]) {
+  return teams.map((team) => {
+    const row: Record<string, unknown> = {
+      rank: team.rank,
+      team_name: team.team_name,
+      GP: team.stats.GP,
+      total_points: team.total_points,
+    };
+    for (const c of config) {
+      row[c.key] = team.roto_points[c.key];
+    }
+    return row;
+  });
+}
+
+function toOverallStatsRows(teams: TeamRow[], config: CategoryMeta[]) {
+  return teams.map((team) => {
+    const row: Record<string, unknown> = {
+      rank: team.rank,
+      team_name: team.team_name,
+      GP: team.stats.GP,
+    };
+    for (const c of config) {
+      row[c.key] = team.stats[c.key];
+      if (c.is_percentage) {
+        row[`${c.key}_roto`] = team.roto_points[c.key];
+      }
+    }
+    return row;
+  });
 }
 
 export function OverviewPage() {
@@ -120,9 +151,23 @@ export function OverviewPage() {
   const { data, loading, error, reload } = useAsyncData(loader, []);
   const autoRefreshed = useRef(false);
 
+  const catConfig = data?.category_config ?? FALLBACK_CONFIG;
+
+  const overallColumns = useMemo(() => buildOverallColumns(catConfig), [catConfig]);
+  const perGameColumns = useMemo(() => buildPerGameColumns(catConfig), [catConfig]);
+  const overallStatsColumns = useMemo(() => buildOverallStatsColumns(catConfig), [catConfig]);
+  const rankingColumns = useMemo(() => buildRankingColumns(catConfig), [catConfig]);
+
   const perGameRows = data?.per_game_rows.map((row) => {
     const team = data.teams.find((t) => t.team_name === row.team_name);
-    return team ? { ...row, "FG%_roto": team.roto_points["FG%"], "FT%_roto": team.roto_points["FT%"] } : row;
+    if (!team) return row;
+    const extra: Record<string, unknown> = {};
+    for (const c of catConfig) {
+      if (c.is_percentage) {
+        extra[`${c.key}_roto`] = team.roto_points[c.key];
+      }
+    }
+    return { ...row, ...extra };
   }) ?? [];
 
   const hasData = Boolean(data?.has_data);
@@ -159,19 +204,19 @@ export function OverviewPage() {
           <section>
             <h2>Overall Standings</h2>
             <p className="section-note">Official Yahoo standings totals and category points.</p>
-            <DataTable columns={OVERALL_COLUMNS} initialSort={{ key: "rank", desc: false }} rows={toOverallRows(data.teams)} />
+            <DataTable columns={overallColumns} initialSort={{ key: "rank", desc: false }} rows={toOverallRows(data.teams, catConfig)} />
           </section>
 
           <section>
             <h2>Overall Stats</h2>
             <p className="section-note">Raw season totals from Yahoo before per-game normalization.</p>
-            <DataTable columns={OVERALL_STATS_COLUMNS} initialSort={{ key: "rank", desc: false }} rows={toOverallStatsRows(data.teams)} />
+            <DataTable columns={overallStatsColumns} initialSort={{ key: "rank", desc: false }} rows={toOverallStatsRows(data.teams, catConfig)} />
           </section>
 
           <section>
             <h2>Per-Game Averages</h2>
             <p className="section-note">Counting stats normalized by games played.</p>
-            <DataTable columns={PER_GAME_COLUMNS} initialSort={{ key: "rank", desc: false }} rows={perGameRows} />
+            <DataTable columns={perGameColumns} initialSort={{ key: "rank", desc: false }} rows={perGameRows} />
           </section>
 
           <section>
@@ -180,7 +225,7 @@ export function OverviewPage() {
               Each category ranked 1-10 based on per-game values (10 = best in league). Total is the sum of all category
               ranks. Delta Total is Total minus your actual roto points.
             </p>
-            <DataTable columns={RANKING_COLUMNS} initialSort={{ key: "rank_total", desc: true }} rows={data.ranking_rows} />
+            <DataTable columns={rankingColumns} initialSort={{ key: "rank_total", desc: true }} rows={data.ranking_rows} />
           </section>
         </>
       ) : null}

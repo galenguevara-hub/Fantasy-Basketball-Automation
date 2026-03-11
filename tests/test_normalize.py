@@ -83,7 +83,7 @@ class TestCalculatePerGameStats:
         assert abs(pg_stats["AST_pg"] - (3008 / 664)) < 0.01
         assert abs(pg_stats["ST_pg"] - (673 / 664)) < 0.01
         assert abs(pg_stats["BLK_pg"] - (460 / 664)) < 0.01
-        assert abs(pg_stats["3PM_pg"] - (1256 / 664)) < 0.01
+        assert abs(pg_stats["3PTM_pg"] - (1256 / 664)) < 0.01
 
     def test_missing_gp(self):
         """Handle teams with missing GP."""
@@ -208,7 +208,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 5.0,
                 "ST_pg": 1.5,
                 "BLK_pg": 1.0,
-                "3PM_pg": 2.0,
+                "3PTM_pg": 2.0,
                 "FG%": 0.480,
                 "FT%": 0.820,
             },
@@ -220,7 +220,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 6.0,
                 "ST_pg": 1.4,
                 "BLK_pg": 1.1,
-                "3PM_pg": 1.8,
+                "3PTM_pg": 1.8,
                 "FG%": 0.475,
                 "FT%": 0.825,
             },
@@ -249,7 +249,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 5.0,
                 "ST_pg": 1.5,
                 "BLK_pg": 1.0,
-                "3PM_pg": 2.0,
+                "3PTM_pg": 2.0,
                 "FG%": 0.480,
                 "FT%": 0.820,
             },
@@ -261,7 +261,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 5.0,
                 "ST_pg": 1.5,
                 "BLK_pg": 1.0,
-                "3PM_pg": 2.0,
+                "3PTM_pg": 2.0,
                 "FG%": 0.480,
                 "FT%": 0.820,
             },
@@ -287,7 +287,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 5.0,
                 "ST_pg": 1.5,
                 "BLK_pg": 1.0,
-                "3PM_pg": 2.0,
+                "3PTM_pg": 2.0,
                 "FG%": 0.480,
                 "FT%": 0.820,
             },
@@ -299,7 +299,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 5.0,
                 "ST_pg": 1.5,
                 "BLK_pg": 1.0,
-                "3PM_pg": 2.0,
+                "3PTM_pg": 2.0,
                 "FG%": 0.480,
                 "FT%": 0.820,
             },
@@ -326,7 +326,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 10.0,
                 "ST_pg": 1.0,
                 "BLK_pg": 1.0,
-                "3PM_pg": 1.0,
+                "3PTM_pg": 1.0,
                 "FG%": 0.450,
                 "FT%": 0.800,
             },
@@ -338,7 +338,7 @@ class TestRankTeamsByCategory:
                 "AST_pg": 10.0,
                 "ST_pg": 1.0,
                 "BLK_pg": 1.0,
-                "3PM_pg": 1.0,
+                "3PTM_pg": 1.0,
                 "FG%": 0.480,  # Higher
                 "FT%": 0.820,  # Higher
             },

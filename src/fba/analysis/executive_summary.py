@@ -9,7 +9,7 @@ category gaps, cluster leverage, games-played pace, and projection models.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from fba.analysis.category_targets import compute_gaps_and_scores
 from fba.analysis.cluster_leverage import compute_cluster_metrics
@@ -18,52 +18,47 @@ from fba.analysis.games_played import (
     compute_projected_roto_ranks,
     compute_projected_totals,
 )
+from fba.category_config import (
+    CategoryConfig,
+    DEFAULT_8CAT_CONFIG,
+    get_analysis_keys,
+)
 from fba.normalize import normalize_standings, parse_stat_value
 
-# Keep category ordering consistent with existing analysis views.
-CATEGORY_ORDER = [
-    "FG%",
-    "FT%",
-    "3PM/G",
-    "PTS/G",
-    "REB/G",
-    "AST/G",
-    "STL/G",
-    "BLK/G",
-]
 
-CATEGORY_LABELS = {
-    "FG%": "FG%",
-    "FT%": "FT%",
-    "3PM/G": "3PM",
-    "PTS/G": "PTS",
-    "REB/G": "REB",
-    "AST/G": "AST",
-    "STL/G": "STL",
-    "BLK/G": "BLK",
-}
+def _build_category_lookups(
+    category_config: Optional[List[CategoryConfig]] = None,
+) -> tuple[list[str], dict[str, str], dict[str, str], dict[str, str]]:
+    """Build category lookup dicts dynamically from config.
 
-CATEGORY_RANK_KEYS = {
-    "FG%": "FG%_Rank",
-    "FT%": "FT%_Rank",
-    "3PM/G": "3PM_Rank",
-    "PTS/G": "PTS_Rank",
-    "REB/G": "REB_Rank",
-    "AST/G": "AST_Rank",
-    "STL/G": "ST_Rank",
-    "BLK/G": "BLK_Rank",
-}
+    Returns (category_order, category_labels, category_rank_keys, category_to_per_game_label).
+    """
+    cats = get_analysis_keys(category_config) if category_config else get_analysis_keys(DEFAULT_8CAT_CONFIG)
 
-CATEGORY_TO_PER_GAME_LABEL = {
-    "FG%": "FG%",
-    "FT%": "FT%",
-    "3PM/G": "3PM/G",
-    "PTS/G": "PTS/G",
-    "REB/G": "REB/G",
-    "AST/G": "AST/G",
-    "STL/G": "STL/G",
-    "BLK/G": "BLK/G",
-}
+    category_order = [c["name"] for c in cats]
+    category_labels = {}
+    category_rank_keys = {}
+    category_to_per_game_label = {}
+
+    if category_config:
+        for cfg in category_config:
+            name = cfg.per_game_display
+            # Label = display name without "/G" suffix
+            category_labels[name] = cfg.display
+            category_rank_keys[name] = cfg.rank_key
+            category_to_per_game_label[name] = cfg.per_game_display
+    else:
+        for cfg in DEFAULT_8CAT_CONFIG:
+            name = cfg.per_game_display
+            category_labels[name] = cfg.display
+            category_rank_keys[name] = cfg.rank_key
+            category_to_per_game_label[name] = cfg.per_game_display
+
+    return category_order, category_labels, category_rank_keys, category_to_per_game_label
+
+
+# Legacy constants — derived from DEFAULT_8CAT_CONFIG for backward compat.
+CATEGORY_ORDER, CATEGORY_LABELS, CATEGORY_RANK_KEYS, CATEGORY_TO_PER_GAME_LABEL = _build_category_lookups()
 
 EPS = 0.05
 
@@ -109,13 +104,17 @@ def _mean(values: list[float]) -> Optional[float]:
     return sum(values) / len(values)
 
 
-def _category_sort_key(item: dict[str, Any]) -> tuple[int, str]:
+def _category_sort_key(
+    item: dict[str, Any],
+    order: Optional[list[str]] = None,
+) -> tuple[int, str]:
     """Deterministic sort for category rows."""
+    cat_order = order if order is not None else CATEGORY_ORDER
     category = str(item.get("category", ""))
     try:
-        idx = CATEGORY_ORDER.index(category)
+        idx = cat_order.index(category)
     except ValueError:
-        idx = len(CATEGORY_ORDER)
+        idx = len(cat_order)
     return (idx, category)
 
 
@@ -169,6 +168,7 @@ def build_executive_summary(
     end_date: date,
     today_date: date,
     total_games: int = 816,
+    category_config: Optional[List[CategoryConfig]] = None,
 ) -> dict[str, Any]:
     """
     Compose a full executive-summary payload from existing analysis models.
@@ -179,7 +179,10 @@ def build_executive_summary(
     if not teams:
         return _empty_payload()
 
-    normalized = normalize_standings(teams)
+    # Build dynamic lookup dicts from config
+    cat_order, cat_labels, cat_rank_keys, cat_pg_labels = _build_category_lookups(category_config)
+
+    normalized = normalize_standings(teams, category_config)
     per_game_rows = normalized.get("per_game_rows", [])
     ranking_rows = normalized.get("ranking_rows", [])
     team_names = [str(r.get("team_name")) for r in per_game_rows if r.get("team_name")]
@@ -198,8 +201,8 @@ def build_executive_summary(
         str(row.get("team_name")): row for row in ranking_rows if row.get("team_name")
     }
 
-    analysis_all = compute_gaps_and_scores(per_game_rows)
-    cluster_all = compute_cluster_metrics(per_game_rows)
+    analysis_all = compute_gaps_and_scores(per_game_rows, category_config)
+    cluster_all = compute_cluster_metrics(per_game_rows, category_config=category_config)
     selected_analysis = analysis_all.get(selected_team, [])
     selected_cluster = cluster_all.get(selected_team, {})
 
@@ -209,13 +212,14 @@ def build_executive_summary(
     pace_by_team = {str(row.get("team_name")): row for row in pace_rows if row.get("team_name")}
 
     projected_totals = compute_projected_totals(
-        teams, start_date, end_date, today_date, total_games=total_games
+        teams, start_date, end_date, today_date, total_games=total_games,
+        category_config=category_config,
     )
     projected_totals_by_team = {
         str(row.get("team_name")): row for row in projected_totals if row.get("team_name")
     }
 
-    projected_ranks = compute_projected_roto_ranks(projected_totals, teams)
+    projected_ranks = compute_projected_roto_ranks(projected_totals, teams, category_config)
     projected_ranks_by_team = {
         str(row.get("team_name")): row for row in projected_ranks if row.get("team_name")
     }
@@ -287,9 +291,9 @@ def build_executive_summary(
 
     category_stability: list[dict[str, Any]] = []
     category_opportunities: list[dict[str, Any]] = []
-    for row in sorted(selected_analysis, key=_category_sort_key):
+    for row in sorted(selected_analysis, key=lambda item: _category_sort_key(item, cat_order)):
         category = str(row.get("category", ""))
-        display = CATEGORY_LABELS.get(category, str(row.get("display", category)).replace("/G", ""))
+        display = cat_labels.get(category, str(row.get("display", category)).replace("/G", ""))
         cluster_metrics = selected_cluster.get(category, {}) if isinstance(selected_cluster, dict) else {}
         sigma = _as_float(cluster_metrics.get("sigma")) if isinstance(cluster_metrics, dict) else None
 
@@ -576,8 +580,8 @@ def build_executive_summary(
     selected_rank_row_data = ranking_by_name.get(selected_team, {})
 
     category_competition: list[dict[str, Any]] = []
-    for category in CATEGORY_ORDER:
-        rank_key = CATEGORY_RANK_KEYS.get(category)
+    for category in cat_order:
+        rank_key = cat_rank_keys.get(category)
         if not rank_key:
             continue
         selected_cat_rank = _as_float(selected_rank_row_data.get(rank_key))
@@ -603,7 +607,7 @@ def build_executive_summary(
 
         category_competition.append(
             {
-                "category": CATEGORY_LABELS.get(category, category),
+                "category": cat_labels.get(category, category),
                 "intensity": intensity,
                 "intensity_score": intensity_score,
                 "competitors": competitors,
@@ -773,7 +777,7 @@ def build_executive_summary(
             swing_value = None
         swing["full_swing_z"] = z_up_max
         swing["full_swing_improvement"] = swing_value
-        unit = CATEGORY_TO_PER_GAME_LABEL.get(raw_category, str(swing.get("category")))
+        unit = cat_pg_labels.get(raw_category, str(swing.get("category")))
         if swing_value is not None:
             swing["full_swing_text"] = f"+{swing_value:.3f} {unit} (z {z_up_max:.2f})"
         else:

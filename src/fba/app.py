@@ -39,6 +39,12 @@ from fba.auth import (
     login_manager,
     store_user_session,
 )
+from fba.category_config import (
+    CategoryConfig,
+    from_serializable,
+    get_counting_configs,
+    to_serializable,
+)
 from fba.config import Config
 from fba.normalize import normalize_standings
 from fba.yahoo_api import (
@@ -107,13 +113,19 @@ def _cache_get(user_id: str, league_id: str) -> "dict | None":
 
 
 def _cache_set(user_id: str, league_id: str, data: dict) -> None:
-    """Write standings to Redis with TTL. Silently skips when Redis is unavailable."""
-    if _redis_client is None:
-        return
+    """Write standings to Redis with TTL. Falls back to disk when Redis is unavailable."""
+    if _redis_client is not None:
+        try:
+            _redis_client.setex(f"fba:standings:{user_id}:{league_id}", _STANDINGS_TTL, json.dumps(data))
+            return
+        except Exception as exc:
+            logger.warning("Redis cache write failed: %s", exc)
+    # Fallback: write to disk so _get_standings can find it without Redis
     try:
-        _redis_client.setex(f"fba:standings:{user_id}:{league_id}", _STANDINGS_TTL, json.dumps(data))
-    except Exception as exc:
-        logger.warning("Redis cache write failed: %s", exc)
+        with open(STANDINGS_FILE, "w") as f:
+            json.dump(data, f)
+    except OSError as exc:
+        logger.warning("Disk standings write failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -210,9 +222,8 @@ def _get_standings(league_id: str) -> "dict | None":
         cached = _cache_get(current_user.id, league_id)
         if cached is not None:
             return cached
-    if _is_legacy_ui_mode():
-        return load_standings()
-    return None
+    # Fall back to disk (always, not just legacy mode — needed when Redis is unavailable)
+    return load_standings()
 
 
 def _get_league_id() -> str:
@@ -256,6 +267,30 @@ def _render_react_index():
     return send_from_directory(FRONTEND_DIST_DIR, "index.html")
 
 
+def _extract_category_config(data: Optional[dict]) -> Optional[list[CategoryConfig]]:
+    """Extract dynamic category config from standings data.
+
+    Returns None for old-format data (graceful fallback to defaults).
+    """
+    if data is None:
+        return None
+    league = data.get("league", {})
+    raw_config = league.get("category_config")
+    if raw_config:
+        try:
+            return from_serializable(raw_config)
+        except Exception:
+            pass
+    # Try legacy categories list
+    legacy_cats = league.get("categories")
+    if legacy_cats:
+        try:
+            return from_serializable(legacy_cats)
+        except Exception:
+            pass
+    return None
+
+
 def _render_react_or_503():
     """Serve React index or return 503 when React mode is forced without a build."""
     if not _has_frontend_build():
@@ -277,14 +312,15 @@ def _build_overview_payload(data: Optional[dict], league_id: str) -> dict[str, A
         }
 
     teams = data.get("teams", [])
+    cat_config = _extract_category_config(data)
     categories = [cat["display_name"] for cat in data.get("league", {}).get("categories", [])]
     scraped_at = data.get("scraped_at")
 
-    normalized = normalize_standings(teams)
+    normalized = normalize_standings(teams, cat_config)
     per_game_rows = normalized.get("per_game_rows", [])
     ranking_rows = normalized.get("ranking_rows", [])
 
-    return {
+    payload: dict[str, Any] = {
         "teams": teams,
         "categories": categories,
         "scraped_at": scraped_at,
@@ -293,6 +329,9 @@ def _build_overview_payload(data: Optional[dict], league_id: str) -> dict[str, A
         "league_id": league_id,
         "has_data": True,
     }
+    if cat_config:
+        payload["category_config"] = to_serializable(cat_config)
+    return payload
 
 
 def _build_analysis_payload(data: Optional[dict], league_id: str, selected_team: Optional[str]) -> dict[str, Any]:
@@ -311,9 +350,10 @@ def _build_analysis_payload(data: Optional[dict], league_id: str, selected_team:
         }
 
     teams = data.get("teams", [])
+    cat_config = _extract_category_config(data)
     scraped_at = data.get("scraped_at")
 
-    normalized = normalize_standings(teams)
+    normalized = normalize_standings(teams, cat_config)
     per_game_rows = normalized.get("per_game_rows", [])
     ranking_rows = normalized.get("ranking_rows", [])
     team_names = [r["team_name"] for r in per_game_rows]
@@ -325,10 +365,10 @@ def _build_analysis_payload(data: Optional[dict], league_id: str, selected_team:
     if selected_team not in team_names and team_names:
         selected_team = team_names[0]
 
-    all_analysis = compute_gaps_and_scores(per_game_rows)
+    all_analysis = compute_gaps_and_scores(per_game_rows, cat_config)
     team_analysis = all_analysis.get(selected_team, [])
 
-    all_cluster = compute_cluster_metrics(per_game_rows)
+    all_cluster = compute_cluster_metrics(per_game_rows, category_config=cat_config)
     team_cluster = all_cluster.get(selected_team, {})
 
     league_summary = []
@@ -442,12 +482,13 @@ def _build_games_played_payload(
         }
 
     teams = data.get("teams", [])
+    cat_config = _extract_category_config(data)
     scraped_at = data.get("scraped_at")
     today = date.today()
 
     rows, date_valid = compute_games_played_metrics(teams, start_date, end_date, today, total_games=total_games)
 
-    normalized = normalize_standings(teams)
+    normalized = normalize_standings(teams, cat_config)
     rank_total_by_team = {
         r["team_name"]: r.get("rank_total")
         for r in normalized.get("ranking_rows", [])
@@ -469,8 +510,9 @@ def _build_games_played_payload(
     # Projected end-of-season counting totals and roto rankings
     projected_totals = compute_projected_totals(
         teams, start_date, end_date, today, total_games=total_games,
+        category_config=cat_config,
     )
-    projected_ranks = compute_projected_roto_ranks(projected_totals, teams)
+    projected_ranks = compute_projected_roto_ranks(projected_totals, teams, cat_config)
 
     # Sort projections by rank for consistent ordering
     projected_totals.sort(key=lambda r: (r["rank"] if r["rank"] is not None else 999))
@@ -480,7 +522,11 @@ def _build_games_played_payload(
     ))
 
     # Category display metadata for the frontend
-    counting_cat_meta = [{"key": c["key"], "display": c["display"]} for c in COUNTING_CATEGORIES]
+    if cat_config:
+        counting_configs = get_counting_configs(cat_config)
+        counting_cat_meta = [{"key": c.key, "display": c.display} for c in counting_configs]
+    else:
+        counting_cat_meta = [{"key": c["key"], "display": c["display"]} for c in COUNTING_CATEGORIES]
 
     return {
         "rows": rows,
@@ -547,6 +593,7 @@ def _build_executive_summary_payload(
         }
 
     teams = data.get("teams", [])
+    cat_config = _extract_category_config(data)
     scraped_at = data.get("scraped_at")
     today = date.today()
 
@@ -557,6 +604,7 @@ def _build_executive_summary_payload(
         end_date=end_date,
         today_date=today,
         total_games=total_games,
+        category_config=cat_config,
     )
 
     return {

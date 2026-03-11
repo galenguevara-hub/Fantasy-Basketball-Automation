@@ -186,7 +186,7 @@
                   <td class="col-gp">{% if row.GP is not none %}{{ row.GP }}{% else %}—{% endif %}</td>
                   <td class="col-pct">{% if row['FG%'] is not none %}{{ "%.3f"|format(row['FG%']) }}{% else %}—{% endif %}</td>
                   <td class="col-pct">{% if row['FT%'] is not none %}{{ "%.3f"|format(row['FT%']) }}{% else %}—{% endif %}</td>
-                  <td class="col-stat">{% if row['3PM_pg'] is not none %}{{ "%.3f"|format(row['3PM_pg']) }}{% else %}—{% endif %}</td>
+                  <td class="col-stat">{% if row['3PTM_pg'] is not none %}{{ "%.3f"|format(row['3PTM_pg']) }}{% else %}—{% endif %}</td>
                   <td class="col-stat">{% if row.PTS_pg is not none %}{{ "%.3f"|format(row.PTS_pg) }}{% else %}—{% endif %}</td>
                   <td class="col-stat">{% if row.REB_pg is not none %}{{ "%.3f"|format(row.REB_pg) }}{% else %}—{% endif %}</td>
                   <td class="col-stat">{% if row.AST_pg is not none %}{{ "%.3f"|format(row.AST_pg) }}{% else %}—{% endif %}</td>
@@ -228,7 +228,7 @@
                   <td class="col-gp">{% if row.GP is not none %}{{ row.GP }}{% else %}—{% endif %}</td>
                   <td class="col-rank">{% if row['FG%_Rank'] is not none %}{{ row['FG%_Rank'] }}{% else %}—{% endif %}</td>
                   <td class="col-rank">{% if row['FT%_Rank'] is not none %}{{ row['FT%_Rank'] }}{% else %}—{% endif %}</td>
-                  <td class="col-rank">{% if row['3PM_Rank'] is not none %}{{ row['3PM_Rank'] }}{% else %}—{% endif %}</td>
+                  <td class="col-rank">{% if row['3PTM_Rank'] is not none %}{{ row['3PTM_Rank'] }}{% else %}—{% endif %}</td>
                   <td class="col-rank">{% if row.PTS_Rank is not none %}{{ row.PTS_Rank }}{% else %}—{% endif %}</td>
                   <td class="col-rank">{% if row.REB_Rank is not none %}{{ row.REB_Rank }}{% else %}—{% endif %}</td>
                   <td class="col-rank">{% if row.AST_Rank is not none %}{{ row.AST_Rank }}{% else %}—{% endif %}</td>

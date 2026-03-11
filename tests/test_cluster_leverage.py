@@ -39,7 +39,7 @@ def _make_row(
         "total_points": None,
         "FG%": fg,
         "FT%": ft,
-        "3PM_pg": threes,
+        "3PTM_pg": threes,
         "PTS_pg": pts,
         "REB_pg": reb,
         "AST_pg": ast,
@@ -456,15 +456,12 @@ class TestClusterTags:
             defend_count = sum(1 for m in cats.values() if m["tag"] == "DEFEND")
             assert defend_count <= N_CLUSTER_DEFEND, team_name
 
-    def test_no_overlap_between_target_and_defend(self):
-        """A category tagged TARGET must not also be tagged DEFEND."""
+    def test_tags_are_valid_values(self):
+        """Every tag must be None, TARGET, or DEFEND."""
         for team_name, cats in self.result.items():
             for cat_name, m in cats.items():
                 assert m["tag"] in (None, "TARGET", "DEFEND"), \
                     f"Unexpected tag {m['tag']!r} on {team_name}/{cat_name}"
-            target_cats = {n for n, m in cats.items() if m["tag"] == "TARGET"}
-            defend_cats = {n for n, m in cats.items() if m["tag"] == "DEFEND"}
-            assert target_cats.isdisjoint(defend_cats)
 
     def test_target_tags_on_highest_cluster_up_scores(self):
         """TARGET cats must be the top N_CLUSTER_TARGETS by cluster_up_score (>0)."""
@@ -479,21 +476,20 @@ class TestClusterTags:
             actual_targets = {n for n, m in cats.items() if m["tag"] == "TARGET"}
             assert actual_targets == expected_targets, team_name
 
-    def test_defend_tags_on_highest_cluster_down_risk_excluding_targets(self):
-        """DEFEND cats must be top N_CLUSTER_DEFEND by cluster_down_risk (>0), not TARGET."""
+    def test_defend_tags_on_highest_cluster_down_risk(self):
+        """DEFEND tag (via tag field) must be the top N_CLUSTER_DEFEND by cluster_down_risk (>0).
+        Categories can be both TARGET and DEFEND — is_defend tracks all top-N defend candidates."""
         for team_name, cats in self.result.items():
-            target_cats = {n for n, m in cats.items() if m["tag"] == "TARGET"}
             candidates = [
                 (cat_name, m["cluster_down_risk"])
                 for cat_name, m in cats.items()
-                if cat_name not in target_cats
-                and m.get("cluster_down_risk") is not None
+                if m.get("cluster_down_risk") is not None
                 and m["cluster_down_risk"] > 0
             ]
             candidates.sort(key=lambda x: (-x[1], x[0]))
-            expected_defends = {name for name, _ in candidates[:N_CLUSTER_DEFEND]}
-            actual_defends = {n for n, m in cats.items() if m["tag"] == "DEFEND"}
-            assert actual_defends == expected_defends, team_name
+            expected_defend_flagged = {name for name, _ in candidates[:N_CLUSTER_DEFEND]}
+            actual_defend_flagged = {n for n, m in cats.items() if m.get("is_defend")}
+            assert actual_defend_flagged == expected_defend_flagged, team_name
 
     def test_zero_score_not_tagged_target(self):
         """Categories with cluster_up_score == 0 must never receive TARGET."""

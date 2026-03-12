@@ -786,17 +786,9 @@ details[open] > .analysis-key-title {
 }
 
 .executive-metrics-grid.executive-top-metrics {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  /* Break out of the app-main max-width container to span the full viewport */
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
-  padding: 0 24px;
-  box-sizing: border-box;
+  width: 100%;
 }
 
 .metric-card {
@@ -988,7 +980,6 @@ tbody tr.row-selected:hover td:first-child {
 
   .executive-top-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding: 0 16px;
   }
 }
 
@@ -1007,7 +998,6 @@ tbody tr.row-selected:hover td:first-child {
 
   .executive-top-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding: 0 12px;
   }
 }
 

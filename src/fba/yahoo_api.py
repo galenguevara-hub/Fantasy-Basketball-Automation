@@ -200,7 +200,7 @@ def _get_team_stats_raw(
 
     # Build the set of stat_ids to ingest (scoring categories + GP)
     if stat_id_configs is not None:
-        allowed_ids = set(stat_id_configs.keys()) | {0}  # always include GP
+        allowed_ids = set(stat_id_configs.keys()) | {0, 2, 3, 6, 7}  # GP + component stats for time series
     else:
         allowed_ids = set(STAT_ID_MAP.keys())
 

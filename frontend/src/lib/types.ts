@@ -93,6 +93,50 @@ export interface GamesPlayedPayload {
   date_error: string | null;
 }
 
+export interface TrendsCategoryInfo {
+  key: string;
+  display: string;
+  higher_is_better: boolean;
+  is_percentage: boolean;
+}
+
+export interface TrendsCategoryStat {
+  value: number | null;
+  vs_own_avg: number | null;
+  vs_league_best: number | null;
+  league_best_value: number | null;
+  league_best_team: string | null;
+  trend: "up" | "down" | "flat";
+}
+
+export interface TrendsWindowData {
+  available: boolean;
+  actual_days: number;
+  categories: Record<string, TrendsCategoryStat>;
+}
+
+export interface TrendsChartPoint {
+  date: string;
+  teams: Record<string, Record<string, number | null>>;
+}
+
+export interface TrendsPayload {
+  has_data: boolean;
+  snapshot_coverage?: {
+    first_date: string;
+    last_date: string;
+    total_snapshots: number;
+  };
+  team_names: string[];
+  selected_team: string | null;
+  scorecard?: {
+    windows: Record<string, TrendsWindowData>;
+  };
+  chart_data?: TrendsChartPoint[];
+  categories?: TrendsCategoryInfo[];
+  season_averages?: Record<string, Record<string, number | null>>;
+}
+
 export interface ExecutiveSummaryPayload {
   has_data: boolean;
   league_id: string;

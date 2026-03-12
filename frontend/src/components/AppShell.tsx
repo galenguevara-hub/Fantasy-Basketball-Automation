@@ -92,6 +92,9 @@ export function AppShell({ scrapedAt, leagueId, loading, onReload, children }: A
                 <Link className={location.pathname === "/games-played" ? "active" : ""} to="/games-played">
                   Games Played Analysis
                 </Link>
+                <Link className={location.pathname === "/trends" ? "active" : ""} to="/trends">
+                  Trends & Scorecard
+                </Link>
               </nav>
             </div>
             <h1>Roto Fantasy Basketball Solver</h1>

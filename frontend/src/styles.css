@@ -1141,3 +1141,41 @@ tbody tr.row-selected:hover td:first-child {
   justify-content: center;
   padding: 64px 0;
 }
+
+/* ── Trends & Scorecard ────────────────────────────────────── */
+
+.trend-positive {
+  color: #15803d;
+}
+
+.trend-negative {
+  color: var(--danger);
+}
+
+.trend-delta {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.trend-arrow {
+  font-size: 9px;
+  margin-left: 2px;
+}
+
+.trends-team-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.trends-empty-state .section-note {
+  max-width: 520px;
+  margin: 32px auto;
+  text-align: center;
+}
+
+.trends-empty-state .section-note p {
+  margin: 8px 0;
+  font-size: 13px;
+}

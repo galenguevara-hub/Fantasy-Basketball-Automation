@@ -88,6 +88,10 @@ if Config.REDIS_URL:
 # Initialize Flask-Login (return 401 JSON for unauthorized API requests)
 login_manager.init_app(app)
 
+# Initialize time series SQLite database
+from fba.timeseries.db import init_db as _init_timeseries_db
+_init_timeseries_db()
+
 
 @app.after_request
 def set_security_headers(response):
@@ -835,6 +839,107 @@ def api_executive_summary():
     return jsonify(payload)
 
 
+@app.route("/api/trends/coverage", methods=["GET"])
+@login_required
+def api_trends_coverage():
+    """Return snapshot coverage info (lightweight check)."""
+    league_id = _get_league_id()
+    if not league_id:
+        return jsonify({"has_data": False})
+
+    from fba.timeseries.snapshots import get_snapshot_range
+    coverage = get_snapshot_range(current_user.id, league_id)
+    if not coverage:
+        return jsonify({"has_data": False})
+
+    first_date, last_date, total_days = coverage
+    return jsonify({
+        "has_data": total_days >= 2,
+        "first_date": first_date,
+        "last_date": last_date,
+        "total_snapshots": total_days,
+    })
+
+
+@app.route("/api/trends", methods=["GET"])
+@login_required
+def api_trends():
+    """Return scorecard + chart data for the trends page."""
+    league_id = _get_league_id()
+    standings = _get_standings(league_id)
+
+    if not standings or not standings.get("teams"):
+        return jsonify({"has_data": False})
+
+    teams = standings["teams"]
+    cat_config_raw = standings.get("league", {}).get("category_config", [])
+    cat_configs = from_serializable(cat_config_raw)
+
+    if not cat_configs:
+        return jsonify({"has_data": False})
+
+    from fba.timeseries.snapshots import get_snapshot_range
+    from fba.timeseries.windowed import compute_chart_data
+    from fba.timeseries.scorecard import compute_scorecard
+    from fba.normalize import build_per_game_rows
+
+    coverage = get_snapshot_range(current_user.id, league_id)
+    if not coverage:
+        return jsonify({
+            "has_data": False,
+            "team_names": [t["team_name"] for t in teams],
+        })
+
+    first_date, last_date, total_days = coverage
+
+    # Build season averages from current standings for scorecard comparison
+    per_game_rows = build_per_game_rows(teams, cat_configs)
+    season_averages: dict[str, dict] = {}
+    for row in per_game_rows:
+        name = row["team_name"]
+        season_averages[name] = {}
+        for cfg in cat_configs:
+            stat_key = cfg.per_game_key if cfg.per_game_key else cfg.key
+            season_averages[name][stat_key] = row.get(stat_key)
+
+    team_names = [t["team_name"] for t in teams]
+    selected_team = request.args.get("team", team_names[0] if team_names else "")
+
+    # Build scorecard for selected team
+    scorecard = compute_scorecard(
+        current_user.id, league_id, selected_team, cat_configs, season_averages,
+    )
+
+    # Build chart data for all teams
+    chart_data = compute_chart_data(current_user.id, league_id, cat_configs)
+
+    # Build category display info for frontend
+    categories = []
+    for cfg in cat_configs:
+        stat_key = cfg.per_game_key if cfg.per_game_key else cfg.key
+        categories.append({
+            "key": stat_key,
+            "display": cfg.per_game_display,
+            "higher_is_better": cfg.higher_is_better,
+            "is_percentage": cfg.is_percentage,
+        })
+
+    return jsonify({
+        "has_data": total_days >= 2,
+        "snapshot_coverage": {
+            "first_date": first_date,
+            "last_date": last_date,
+            "total_snapshots": total_days,
+        },
+        "team_names": team_names,
+        "selected_team": selected_team,
+        "scorecard": scorecard,
+        "chart_data": chart_data,
+        "categories": categories,
+        "season_averages": season_averages,
+    })
+
+
 @app.route("/api/config", methods=["POST"])
 def set_config():
     """Save league ID to the session (no auth required)."""
@@ -893,6 +998,13 @@ def refresh():
         # Store in Redis cache, scoped to this user+league
         _cache_set(current_user.id, league_id, data)
         teams_count = len(data.get("teams", []))
+
+        # Save snapshot for time series (fire-and-forget)
+        try:
+            from fba.timeseries.snapshots import save_snapshot
+            save_snapshot(current_user.id, league_id, data.get("teams", []))
+        except Exception:
+            logger.warning("Failed to save time series snapshot", exc_info=True)
 
         logger.info("API fetch complete — %d teams updated.", teams_count)
         return jsonify({

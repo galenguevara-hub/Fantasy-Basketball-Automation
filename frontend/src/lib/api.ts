@@ -4,7 +4,8 @@ import type {
   ConfigPayload,
   ExecutiveSummaryPayload,
   GamesPlayedPayload,
-  OverviewPayload
+  OverviewPayload,
+  TrendsPayload
 } from "./types";
 
 export class ApiError extends Error {
@@ -106,4 +107,9 @@ export function getExecutiveSummary(team?: string, signal?: AbortSignal) {
   const query = search.toString();
   const url = query ? `/api/executive-summary?${query}` : "/api/executive-summary";
   return fetchJson<ExecutiveSummaryPayload>(url, { signal });
+}
+
+export function getTrends(team?: string, signal?: AbortSignal) {
+  const query = team ? `?team=${encodeURIComponent(team)}` : "";
+  return fetchJson<TrendsPayload>(`/api/trends${query}`, { signal });
 }

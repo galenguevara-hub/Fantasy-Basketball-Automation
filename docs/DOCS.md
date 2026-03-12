@@ -31,8 +31,13 @@
 
 - `src/fba/app.py`: Flask entrypoint, session config, and cache integration
 - `src/fba/auth.py`: Yahoo OAuth and session handling
-- `src/fba/yahoo_api.py`: Yahoo Fantasy API client
-- `src/fba/normalize.py`: per-game normalization and re-ranking
+- `src/fba/yahoo_api.py`: Yahoo Fantasy API client with league validation and
+  human-readable error translation
+- `src/fba/category_config.py`: `CategoryConfig` dataclass — single source of
+  truth for per-category metadata (key, display, stat_id, directionality,
+  percentage flag); `build_category_config_from_raw()` parses Yahoo raw settings
+- `src/fba/normalize.py`: per-game normalization and re-ranking (directionality
+  driven by `CategoryConfig`)
 - `src/fba/analysis/category_targets.py`: layer-1 target/defend scoring
 - `src/fba/analysis/cluster_leverage.py`: layer-2 cluster leverage scoring (v2
   active, v1 retained)
@@ -44,11 +49,8 @@
 
 ## Current Verification Snapshot
 
-Latest recorded (March 8, 2026):
+Latest recorded (March 11, 2026):
 
-- maintained calculation tests: `78 passed`
-- frontend production build: passed
-- full `./venv/bin/pytest -q` is still blocked in the checked-in `venv`
-  because backend packages are missing there
-- Docker/Fly config was validated from checked-in files, not exercised live in
-  that pass
+- `./venv/bin/pytest -q` → `192 passed`
+- `npm --prefix frontend run build` → passed
+- Deployed to `https://roto-fantasy-solver.fly.dev`

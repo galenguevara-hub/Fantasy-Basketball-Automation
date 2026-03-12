@@ -16,7 +16,6 @@ Set at minimum:
 - `SECRET_KEY`
 - `YAHOO_CLIENT_ID`
 - `YAHOO_CLIENT_SECRET`
-- `REDIS_URL` for the current multi-user React refresh flow
 
 Recommended:
 
@@ -39,12 +38,10 @@ Open `http://localhost:8080`.
 Default landing page is the Executive Summary dashboard. Use the hamburger
 menu to access Standings (`/standings`), Category Analysis, and Games Played.
 
-For the current React flow, this shell path expects a working Redis instance
-behind `REDIS_URL`. If you do not already have Redis running, use Docker
-Compose instead.
-
-Without `REDIS_URL`, the app still starts but refreshed standings are not
-persisted for React API reads.
+Without `REDIS_URL`, the app still starts. Refreshed standings are written to
+`data/standings.json` and read back on subsequent API calls (disk fallback).
+For the full multi-user experience with cooldown and league ID persistence, run
+Redis via Docker Compose or supply `REDIS_URL`.
 
 ## 4) Start The App (Docker Compose)
 
@@ -71,13 +68,16 @@ automatically.
 
 ## 5) Connect A League
 
-1. Enter your Yahoo league ID.
+1. Enter your Yahoo league ID (NBA roto leagues only).
 2. Click `Connect`.
-3. Complete Yahoo OAuth if prompted.
+3. If not yet authenticated, Yahoo OAuth opens in a new tab — complete the flow
+   there, then return to the app.
 4. The app refreshes standings through the Yahoo Fantasy API.
 
 Notes:
 
+- only NBA fantasy basketball leagues with rotisserie (roto) scoring are
+  supported; non-NBA or non-roto leagues are rejected with a clear error message
 - refresh is rate-limited per user to one request every 30 seconds when Redis
   is enabled
 - on rate limit, the API returns `429` with `retry_after`, and the UI shows a
@@ -113,16 +113,16 @@ Current `fly.toml` highlights:
 
 ## 8) Verification
 
-Latest recorded verification (March 8, 2026):
+Latest recorded verification (March 11, 2026):
 
 ```bash
-./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py
+./venv/bin/pytest -q
 npm --prefix frontend run build
 ```
 
 Results:
 
-- pytest subset: `78 passed`
+- pytest: `192 passed`
 - frontend build: passed
 
 If `./venv/bin/pytest -q` fails during collection, reinstall backend

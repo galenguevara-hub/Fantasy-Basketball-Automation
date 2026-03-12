@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Current as of March 8, 2026 (`main` local state).
+Current as of March 11, 2026 (`main`).
 
 ## Runtime Modes
 
@@ -25,7 +25,10 @@ Browser
         -> fba.auth.get_valid_tokens()
         -> fba.yahoo_api.get_oauth_session_from_tokens()
         -> fba.yahoo_api.fetch_standings()
+           -> validates sport (NBA only) and scoring type (roto only)
+           -> builds CategoryConfig from Yahoo raw settings
         -> cache standings per user_id + league_id (Redis, 1h TTL)
+        -> disk fallback: writes data/standings.json when Redis unavailable
 ```
 
 React route behavior:
@@ -44,7 +47,8 @@ React route behavior:
 - app still runs in both `react` and `legacy` modes
 - refresh cooldown and league ID long-term persistence are effectively disabled
   (fail-open behavior)
-- refreshed standings are not persisted for React API reads
+- refreshed standings are written to `data/standings.json` and read back on
+  all subsequent API calls (disk fallback introduced March 11, 2026)
 
 ### With `REDIS_URL`
 
@@ -118,34 +122,47 @@ Redis must be provided externally via `REDIS_URL`.
 - encrypted token storage in session (`Fernet`)
 - Flask-Login integration
 
+### `src/fba/category_config.py`
+
+- `CategoryConfig` dataclass: single source of truth for per-category metadata
+- `KNOWN_STATS` dict mapping Yahoo `stat_id` → key, display, directionality
+- `build_category_config_from_raw()`: parses Yahoo raw settings JSON to produce
+  a `CategoryConfig` list dynamically at refresh time
+- `DEFAULT_8CAT_CONFIG`: fallback config for old standings files without
+  embedded config
+- `to_serializable()` / `from_serializable()`: JSON round-trip for storage
+
 ### `src/fba/yahoo_api.py`
 
-- Yahoo Fantasy API standings fetch
-- raw Yahoo team-stat fetch for `GP`
-- app-schema roto category mapping
+- Yahoo Fantasy API standings fetch with league validation (NBA + roto only)
+- builds `CategoryConfig` from Yahoo raw settings at each refresh
+- raw Yahoo team-stat fetch for `GP` using dynamic stat_id map
+- human-readable error translation for Yahoo API error responses
 - legacy fallback support kept for archived tooling
 
 ### `src/fba/normalize.py`
 
-- per-game normalization of Yahoo totals
-- category re-ranking (`N = best`, `1 = worst`)
+- per-game normalization driven by `CategoryConfig` (counting vs percentage)
+- category re-ranking (`N = best`, `1 = worst`) respecting `higher_is_better`
 - `rank_total` and `points_delta` outputs
 
 ### `src/fba/analysis/category_targets.py`
 
-- nearest-team effort/risk gaps (`gap_up`, `gap_down`, z versions)
+- nearest-team effort/risk gaps (`gap_up`, `gap_down`, z versions) respecting
+  `higher_is_better` directionality
 - target score with 1st-place defensive branch
 - independent `is_target` and `is_defend` flags
 - `N_TARGETS = 3`, `N_DEFEND = 3`
 
 ### `src/fba/analysis/cluster_leverage.py`
 
-- tier construction by distinct category values
+- tier construction by distinct category values respecting directionality
 - threshold window `T = 0.75`
 - v1 count-based scores retained (`*_v1`)
 - v2 distance-weighted scores active (`*_v2` -> `cluster_up_score` /
   `cluster_down_risk`)
-- independent `is_target` / `is_defend` flags (`top 3` each)
+- `tag` field: `TARGET` and `DEFEND` are mutually exclusive; `is_defend` flag
+  marks all top-N defend candidates regardless of TARGET status
 
 ### `src/fba/analysis/games_played.py`
 
@@ -174,14 +191,8 @@ part of the supported runtime path.
 
 ## Verification Snapshot
 
-Latest recorded verification (March 8, 2026):
+Latest recorded verification (March 11, 2026):
 
-- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py`
-- Result: `78 passed`
-- `npm --prefix frontend run build`
-- Result: passed
-
-Not exercised in that pass:
-
-- live `docker compose up --build`
-- live `fly deploy`
+- `./venv/bin/pytest -q` → `192 passed`
+- `npm --prefix frontend run build` → passed
+- `flyctl deploy --remote-only` → deployed to `https://roto-fantasy-solver.fly.dev`

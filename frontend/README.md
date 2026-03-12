@@ -27,7 +27,7 @@ The frontend uses:
 
 Refresh/auth behavior:
 
-- `401` triggers OAuth redirect (`window.location.href = "/auth/yahoo"`)
+- `401` triggers OAuth in a new tab (`window.open("/auth/yahoo", "_blank")`)
 - `429` from `/refresh` is parsed via `retry_after` and shown as a countdown
   in `LeagueControls`
 
@@ -45,6 +45,16 @@ Cluster table:
 - displays active cluster scores from backend (`cluster_up_score`,
   `cluster_down_risk`)
 - explanatory copy reflects the active distance-weighted cluster scoring model
+- `tag` field: `TARGET` and `DEFEND` are mutually exclusive; `is_defend` flag
+  marks all top-N defend candidates regardless of TARGET status
+
+## Dynamic Category Support
+
+- `GET /api/overview` response includes `category_config` array when the
+  league has been refreshed with the current backend
+- `OverviewPage` builds all category column definitions dynamically from config
+- falls back to `DEFAULT_8CAT_CONFIG` (8-cat hardcoded) for old standings files
+  without embedded config
 
 ## Table Behaviors
 

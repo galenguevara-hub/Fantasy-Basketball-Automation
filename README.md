@@ -3,7 +3,7 @@
 Yahoo Fantasy Basketball analysis app with a Flask backend, React frontend,
 Yahoo OAuth login, and direct Yahoo Fantasy API refreshes.
 
-## Current State (March 8, 2026)
+## Current State (March 11, 2026)
 
 Supported runtime/deployment path:
 
@@ -21,25 +21,33 @@ Archived one-off tooling and deprecated flows live in `legacy/`.
 
 ## Recent Functional Changes
 
+- Dynamic league categories: Yahoo raw settings parsed at refresh time to build
+  `CategoryConfig`; all ranking, normalization, gap, cluster, and projection
+  logic is now driven by config — no more hard-coded 8-category assumptions
+- Directionality support: categories with `higher_is_better=False` (e.g. TO in
+  9-cat leagues) sort and gap-calculate correctly throughout the entire pipeline
+- Frontend receives `category_config` in `/api/overview` and builds all column
+  definitions dynamically; falls back to `DEFAULT_8CAT_CONFIG` for old files
+- League validation on refresh: non-NBA leagues and non-roto scoring leagues are
+  rejected immediately with a clear, specific error message
+- Human-readable Yahoo API errors: raw bytes/JSON Yahoo error responses are
+  parsed and shown as plain English messages
+- Yahoo OAuth opens in a new browser tab (no longer navigates away from the app)
+- Standings disk fallback: refreshed standings written to `data/standings.json`
+  when Redis is unavailable; React mode works without Redis
+- Rank Delta card removed from Executive Summary top metrics grid
 - Redis-backed sessions when `REDIS_URL` is configured
 - Redis-backed per-user standings cache (`user_id + league_id`) with 1-hour TTL
 - Per-user refresh cooldown in Redis (`POST /refresh` returns `429` with
   `retry_after` when called again within 30 seconds)
 - League ID persistence in Redis (`fba:league_id:{user_id}`) with 1-year TTL,
   restored on login/callback
-- Layer 1 analysis now exposes independent `is_target` and `is_defend` flags
+- Layer 1 analysis exposes independent `is_target` and `is_defend` flags
   (categories can be both)
-- Cluster analysis now uses v2 distance-weighted scoring as active output, with
-  v1 scores retained for diagnostics/rollback
-- Analysis UI summary cards split into `L1` and `Cluster` sections and sorted
-  by priority score
-- Executive Summary route and API (`GET /executive-summary`,
-  `GET /api/executive-summary`) added for decision-focused synthesis
-- Executive Summary is now the default React landing page (`/`)
-- Standings view moved to a dedicated client route (`/standings`) for
-  in-app navigation
-- Executive Summary UI now emphasizes visual chips/metrics, category leverage,
-  and equal-games-played rank context
+- Cluster analysis uses v2 distance-weighted scoring as active output, with v1
+  scores retained for diagnostics/rollback
+- Executive Summary is the default React landing page (`/`)
+- Standings view at dedicated client route (`/standings`)
 
 ## Environment Variables
 
@@ -73,9 +81,10 @@ npm --prefix frontend run build
 
 Important:
 
-- For the current multi-user React flow, run Redis and set `REDIS_URL`
-- Without `REDIS_URL`, the app starts, but refreshed React-mode standings are
-  not persisted by the current code path
+- Without `REDIS_URL`, the app starts and standings are persisted to
+  `data/standings.json` as a disk fallback — React mode works without Redis
+- For the full multi-user experience with refresh cooldowns and league ID
+  persistence, run Redis and set `REDIS_URL`
 
 ## Run Locally (Non-Docker)
 
@@ -169,7 +178,8 @@ Without `REDIS_URL`:
 
 - app uses cookie-based sessions
 - refresh cooldown and league ID persistence are effectively disabled (fail-open)
-- React refresh responses are not persisted across requests
+- refreshed standings are written to `data/standings.json` and read back on all
+  API calls (disk fallback)
 
 Legacy template mode still reads:
 
@@ -178,17 +188,11 @@ Legacy template mode still reads:
 
 ## Verification Snapshot
 
-Latest recorded verification (March 8, 2026):
+Latest recorded verification (March 11, 2026):
 
-- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py`
-- Result: `78 passed`
-- `npm --prefix frontend run build`
-- Result: passed
-
-Known local caveat:
-
-- `./venv/bin/pytest -q` can fail during collection in the checked-in `venv`
-  if backend packages (for example `python-dotenv`) are missing there
+- `./venv/bin/pytest -q` → `192 passed`
+- `npm --prefix frontend run build` → passed
+- Deployed to `https://roto-fantasy-solver.fly.dev`
 
 ## Docs
 

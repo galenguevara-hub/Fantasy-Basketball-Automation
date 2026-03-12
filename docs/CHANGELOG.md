@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-03-11
+
+### Dynamic league categories + error handling + UX improvements
+
+- Added `src/fba/category_config.py` as a single source of truth for category
+  metadata (`CategoryConfig` dataclass with `key`, `display`, `stat_id`,
+  `higher_is_better`, `is_percentage`, `per_game_key`, `rank_key`)
+- Yahoo raw settings are parsed at refresh time to build a `CategoryConfig`
+  list dynamically; stored in standings payload as `league.category_config`
+- All ranking, per-game normalization, gap calculation, cluster scoring, game
+  projection, and executive summary logic is now driven by config — no more
+  hard-coded 8-category assumptions
+- Directionality support: categories with `higher_is_better=False` (e.g. TO in
+  9-cat leagues) sort and gap-calculate correctly throughout the entire pipeline
+- Frontend receives `category_config` in `/api/overview` response and builds
+  all column definitions dynamically; falls back to `DEFAULT_8CAT_CONFIG` for
+  old standings files without embedded config
+- DEFEND cluster tag is mutually exclusive with TARGET at the `tag` field
+  level; `is_defend` flag still marks all top-N defend candidates
+- `defends` list in `league_summary` sorted by `z_gap_down` ascending
+  (tightest gap = highest priority defend)
+- Yahoo OAuth redirect now opens in a new browser tab
+- Standings disk fallback: when `REDIS_URL` is not configured, refreshed
+  standings are now written to `data/standings.json` and read back on all API
+  calls — React mode works without Redis
+- Human-readable Yahoo API errors: raw bytes/JSON Yahoo error responses are
+  parsed and shown as plain English messages
+- League validation on refresh: non-NBA leagues and non-roto scoring leagues
+  are rejected immediately with a clear, specific error message
+- Removed Rank Delta metric card from Executive Summary top metrics grid
+- 192/192 tests passing
+
+### Verification snapshot
+
+- `./venv/bin/pytest -q` → `192 passed`
+- `npm --prefix frontend run build` → passed
+- Deployed to `https://roto-fantasy-solver.fly.dev`
+
 ## 2026-03-08
 
 ### Executive summary and docs alignment
@@ -54,7 +92,7 @@
 
 ## 2026-03-03
 
-### Documentation refresh for deployment changes
+### Documentation refresh and deployment changes
 
 - Scanned the latest local branch tips and updated the docs for the current
   `main` / `feat/saas-dev` state.
@@ -69,7 +107,7 @@
   - Fly.io deployment
 - Updated verification notes to the current March 3, 2026 status.
 
-### Verification snapshot
+### Verification (March 3, 2026)
 
 - Executed on March 3, 2026:
   - `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_cluster_leverage.py tests/test_games_played.py`

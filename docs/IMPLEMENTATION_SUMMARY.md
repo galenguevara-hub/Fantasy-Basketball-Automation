@@ -1,6 +1,6 @@
 # Implementation Summary
 
-Status: current as of March 8, 2026.
+Status: current as of March 11, 2026.
 
 ## What Is Implemented
 
@@ -9,6 +9,7 @@ Status: current as of March 8, 2026.
 - Legacy Jinja UI in `src/fba/templates/`
 - Yahoo OAuth login and encrypted session token storage in `src/fba/auth.py`
 - Direct Yahoo Fantasy API refresh path in `src/fba/yahoo_api.py`
+- League category metadata as single source of truth in `src/fba/category_config.py`
 - Per-game normalization in `src/fba/normalize.py`
 - Layer 1 category target/defend analysis in `src/fba/analysis/category_targets.py`
 - Layer 2 cluster leverage analysis in `src/fba/analysis/cluster_leverage.py`
@@ -18,6 +19,7 @@ Status: current as of March 8, 2026.
 - Local Docker + Redis stack in `docker-compose.yml`
 - Fly.io deployment config in `fly.toml`
 - Redis-backed sessions/cache/cooldown/persistence features when `REDIS_URL` is set
+- Disk-based standings fallback when Redis is unavailable (`data/standings.json`)
 
 ## Active Endpoints (`src/fba/app.py`)
 
@@ -57,7 +59,8 @@ Status: current as of March 8, 2026.
 - Flask uses cookie sessions
 - app still starts
 - refresh cooldown and league ID long-term persistence are disabled
-- refreshed standings are not persisted for React API reads
+- refreshed standings are written to `data/standings.json` and read back on all
+  subsequent API calls (disk fallback introduced March 11, 2026)
 
 ### With `REDIS_URL`
 
@@ -72,12 +75,17 @@ Status: current as of March 8, 2026.
 
 - Layer 1 (`category_targets.py`):
   - score includes first-place defensive branch (`DEFEND_WEIGHT / max(z_gap_down, EPS)`)
-  - `TARGET` and `DEFEND` are independent (`is_target`, `is_defend`)
+  - `TARGET` and `DEFEND` are independent (`is_target`, `is_defend`); categories
+    can be both simultaneously
+  - directionality respects `higher_is_better` from `CategoryConfig` (e.g. TO)
   - `N_TARGETS = 3`, `N_DEFEND = 3`
 - Layer 2 (`cluster_leverage.py`):
   - v1 count-based scores are retained (`cluster_*_v1`)
   - v2 distance-weighted scores are active (`cluster_*_v2` -> `cluster_up_score` / `cluster_down_risk`)
-  - `TARGET` and `DEFEND` are independent (`top 3` each)
+  - `tag` field: `TARGET` and `DEFEND` are mutually exclusive; `is_defend` flag
+    marks all top-N defend candidates regardless of TARGET status
+  - `defends` list in `league_summary` sorted by `z_gap_down` ascending
+    (tightest gap = highest priority defend)
 
 ## Deployment Files
 
@@ -97,21 +105,16 @@ Status: current as of March 8, 2026.
 ## Disk Files Still Used By Supported Code
 
 - `data/config.json`: legacy-template config fallback
-- `data/standings.json`: legacy-template standings fallback
+- `data/standings.json`: standings disk fallback (written after every refresh
+  when Redis is unavailable; read back on all API calls as last-resort fallback)
 
 `data/oauth2.json` remains only as a legacy fallback inside
 `src/fba/yahoo_api.py`; the supported web OAuth flow does not require it.
 
 ## Verification Snapshot
 
-Latest recorded verification (March 8, 2026):
+Latest recorded verification (March 11, 2026):
 
-- `./venv/bin/pytest -q tests/test_normalize.py tests/test_category_targets.py tests/test_games_played.py tests/test_executive_summary.py`
-- Result: `78 passed`
-- `npm --prefix frontend run build`
-- Result: passed
-
-Also recorded on March 8, 2026:
-
-- `./venv/bin/pytest -q` failed during collection in checked-in `venv` because
-  backend dependencies (including `python-dotenv`) were missing there
+- `./venv/bin/pytest -q` → `192 passed`
+- `npm --prefix frontend run build` → passed
+- Deployed to `https://roto-fantasy-solver.fly.dev`

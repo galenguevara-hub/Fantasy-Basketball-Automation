@@ -786,8 +786,9 @@ details[open] > .analysis-key-title {
 }
 
 .executive-metrics-grid.executive-top-metrics {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
 }
 
 .metric-card {
@@ -978,7 +979,7 @@ tbody tr.row-selected:hover td:first-child {
   }
 
   .executive-top-metrics {
-    grid-template-columns: repeat(2, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -996,7 +997,7 @@ tbody tr.row-selected:hover td:first-child {
   }
 
   .executive-top-metrics {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

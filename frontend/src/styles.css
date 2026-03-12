@@ -25,6 +25,8 @@ body {
 }
 
 .app-header {
+  position: relative;
+  z-index: 100;
   border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(5px);

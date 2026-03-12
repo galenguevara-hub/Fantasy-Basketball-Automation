@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 import time
 from dataclasses import dataclass
 from urllib.parse import urlencode
@@ -86,6 +87,20 @@ def clear_user_session() -> None:
     logout_user()
     session.pop("yahoo_tokens", None)
     session.pop("yahoo_display_name", None)
+    session.pop("oauth_state", None)
+
+
+def validate_oauth_state(received_state: str) -> bool:
+    """Validate the OAuth state parameter to prevent CSRF on the callback.
+
+    Returns True if the state matches and clears it from the session.
+    Returns False if missing or mismatched.
+    """
+    expected = session.pop("oauth_state", None)
+    session.modified = True
+    if not expected or not received_state:
+        return False
+    return secrets.compare_digest(expected, received_state)
 
 
 def get_user_tokens() -> dict | None:
@@ -167,18 +182,24 @@ def get_valid_tokens() -> dict | None:
 # ---------------------------------------------------------------------------
 
 def build_auth_url() -> str:
-    """Build the Yahoo OAuth2 authorization redirect URL."""
+    """Build the Yahoo OAuth2 authorization redirect URL.
+
+    Generates a cryptographically random state token, stores it in the session,
+    and includes it in the URL for CSRF protection on the callback.
+    """
+    state = secrets.token_urlsafe(32)
+    session["oauth_state"] = state
+    session.modified = True
+
     params = {
         "client_id": Config.YAHOO_CLIENT_ID,
         "redirect_uri": Config.YAHOO_REDIRECT_URI,
         "response_type": "code",
         "language": "en-us",
-
+        "state": state,
     }
     url = f"{YAHOO_AUTH_URL}?{urlencode(params)}"
-    logger.info("OAuth authorization URL: %s", url)
-    logger.info("  client_id: %s", Config.YAHOO_CLIENT_ID[:20] + "...")
-    logger.info("  redirect_uri: %s", Config.YAHOO_REDIRECT_URI)
+    logger.info("OAuth authorization URL built (redirect_uri=%s)", Config.YAHOO_REDIRECT_URI)
     return url
 
 

@@ -38,6 +38,7 @@ from fba.auth import (
     get_valid_tokens,
     login_manager,
     store_user_session,
+    validate_oauth_state,
 )
 from fba.category_config import (
     CategoryConfig,
@@ -64,6 +65,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = Config.SECRET_KEY
 
+# Secure session cookie flags
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Only send cookies over HTTPS in production (Fly.io enforces HTTPS; skip for local dev)
+app.config["SESSION_COOKIE_SECURE"] = bool(Config.REDIS_URL)
+
 # Redis-backed sessions (only when REDIS_URL is configured)
 _redis_client: "Redis | None" = None
 if Config.REDIS_URL:
@@ -78,6 +85,24 @@ if Config.REDIS_URL:
 
 # Initialize Flask-Login (return 401 JSON for unauthorized API requests)
 login_manager.init_app(app)
+
+
+@app.after_request
+def set_security_headers(response):
+    """Apply standard security headers to every response."""
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # CSP: allow same-origin scripts/styles plus inline (React build inlines chunks)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    return response
 
 
 @login_manager.unauthorized_handler
@@ -695,17 +720,6 @@ def auth_yahoo():
     return redirect(url)
 
 
-@app.route("/debug/auth-url")
-def debug_auth_url():
-    """Show the exact OAuth authorization URL for debugging (dev only)."""
-    url = build_auth_url()
-    return jsonify({
-        "auth_url": url,
-        "client_id": Config.YAHOO_CLIENT_ID,
-        "redirect_uri": Config.YAHOO_REDIRECT_URI,
-        "redirect_uri_env": os.environ.get("YAHOO_REDIRECT_URI", "(not set)"),
-    })
-
 
 @app.route("/auth/yahoo/callback")
 def auth_yahoo_callback():
@@ -714,6 +728,12 @@ def auth_yahoo_callback():
     if error:
         logger.warning("Yahoo OAuth error: %s", error)
         return redirect("/?auth_error=" + error)
+
+    # Validate OAuth state parameter to prevent CSRF
+    received_state = request.args.get("state", "")
+    if not validate_oauth_state(received_state):
+        logger.warning("OAuth callback rejected: state mismatch (possible CSRF attempt)")
+        return redirect("/?auth_error=state_mismatch")
 
     code = request.args.get("code")
     if not code:

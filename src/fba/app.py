@@ -16,6 +16,8 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
+from urllib.parse import quote
+
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, session
 from flask_login import current_user, login_required
 from flask_session import Session
@@ -79,7 +81,7 @@ if Config.REDIS_URL:
     app.config["SESSION_REDIS"] = _redis_client
     app.config["SESSION_KEY_PREFIX"] = "fba:session:"
     app.config["SESSION_PERMANENT"] = True
-    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
     app.config["SESSION_SERIALIZATION_FORMAT"] = "json"
     Session(app)
 
@@ -102,6 +104,8 @@ def set_security_headers(response):
         "connect-src 'self'; "
         "frame-ancestors 'none'"
     )
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
     return response
 
 
@@ -716,7 +720,7 @@ def auth_yahoo():
     if not Config.YAHOO_CLIENT_ID:
         return jsonify({"error": "YAHOO_CLIENT_ID not configured"}), 500
     url = build_auth_url()
-    logger.info("Redirecting user to Yahoo OAuth: %s", url)
+    logger.info("Redirecting user to Yahoo OAuth authorization.")
     return redirect(url)
 
 
@@ -727,7 +731,7 @@ def auth_yahoo_callback():
     error = request.args.get("error")
     if error:
         logger.warning("Yahoo OAuth error: %s", error)
-        return redirect("/?auth_error=" + error)
+        return redirect("/?auth_error=" + quote(error, safe=""))
 
     # Validate OAuth state parameter to prevent CSRF
     received_state = request.args.get("state", "")
@@ -817,6 +821,7 @@ def api_config():
 
 
 @app.route("/api/overview", methods=["GET"])
+@login_required
 def api_overview():
     """Return standings overview payload for React clients."""
     league_id = _get_league_id()
@@ -825,6 +830,7 @@ def api_overview():
 
 
 @app.route("/api/analysis", methods=["GET"])
+@login_required
 def api_analysis():
     """Return target-category analysis payload for React clients."""
     league_id = _get_league_id()
@@ -833,6 +839,7 @@ def api_analysis():
 
 
 @app.route("/api/games-played", methods=["GET"])
+@login_required
 def api_games_played():
     """Return games played analysis payload for React clients."""
     league_id = _get_league_id()
@@ -842,6 +849,7 @@ def api_games_played():
 
 
 @app.route("/api/executive-summary", methods=["GET"])
+@login_required
 def api_executive_summary():
     """Return executive-summary payload for React clients."""
     league_id = _get_league_id()
@@ -926,17 +934,17 @@ def refresh():
         clear_user_session()
         return jsonify({
             "status": "error",
-            "error": str(e),
+            "error": "Authentication failed. Please log in again.",
             "session_expired": True,
         }), 401
 
     except YahooAPIError as e:
         logger.error("Yahoo API error: %s", e)
-        return jsonify({"status": "error", "error": str(e)}), 500
+        return jsonify({"status": "error", "error": "Failed to fetch data from Yahoo. Please try again."}), 500
 
     except Exception as e:
-        logger.error("Unexpected error during refresh: %s", e)
-        return jsonify({"status": "error", "error": str(e)}), 500
+        logger.error("Unexpected error during refresh: %s", e, exc_info=True)
+        return jsonify({"status": "error", "error": "An unexpected error occurred. Please try again."}), 500
 
 
 @app.route("/assets/<path:filename>", methods=["GET"])

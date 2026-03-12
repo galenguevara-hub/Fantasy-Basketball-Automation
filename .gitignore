@@ -15,9 +15,13 @@ data/browser_state.json
 out/
 server.log
 
+# Config directory credentials
+config/*.json
+
 # Legacy Yahoo API test sandbox
 legacy/yahoo_api_test/oauth2.json
 legacy/yahoo_api_test/venv/
+yahoo_api_test/
 
 # Python
 __pycache__/

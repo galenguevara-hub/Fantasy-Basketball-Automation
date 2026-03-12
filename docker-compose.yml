@@ -20,7 +20,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SECRET_KEY=local-docker-secret-change-me
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in your .env file}
       - REDIS_URL=redis://redis:6379/0
       - YAHOO_CLIENT_ID=${YAHOO_CLIENT_ID}
       - YAHOO_CLIENT_SECRET=${YAHOO_CLIENT_SECRET}

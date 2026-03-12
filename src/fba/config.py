@@ -6,7 +6,13 @@ import os
 
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+    SECRET_KEY = os.environ.get("SECRET_KEY", "")
+    if not SECRET_KEY and os.environ.get("REDIS_URL"):
+        raise RuntimeError(
+            "SECRET_KEY must be set in production (REDIS_URL is configured). "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+    SECRET_KEY = SECRET_KEY or "dev-secret-key-change-in-production"
     YAHOO_CLIENT_ID = os.environ.get("YAHOO_CLIENT_ID", "")
     YAHOO_CLIENT_SECRET = os.environ.get("YAHOO_CLIENT_SECRET", "")
     YAHOO_REDIRECT_URI = os.environ.get(

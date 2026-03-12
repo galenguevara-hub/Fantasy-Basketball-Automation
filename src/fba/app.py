@@ -16,6 +16,8 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
+from urllib.parse import quote
+
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, session
 from flask_login import current_user, login_required
 from flask_session import Session
@@ -38,6 +40,7 @@ from fba.auth import (
     get_valid_tokens,
     login_manager,
     store_user_session,
+    validate_oauth_state,
 )
 from fba.category_config import (
     CategoryConfig,
@@ -64,6 +67,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = Config.SECRET_KEY
 
+# Secure session cookie flags
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Only send cookies over HTTPS in production (Fly.io enforces HTTPS; skip for local dev)
+app.config["SESSION_COOKIE_SECURE"] = bool(Config.REDIS_URL)
+
 # Redis-backed sessions (only when REDIS_URL is configured)
 _redis_client: "Redis | None" = None
 if Config.REDIS_URL:
@@ -72,12 +81,32 @@ if Config.REDIS_URL:
     app.config["SESSION_REDIS"] = _redis_client
     app.config["SESSION_KEY_PREFIX"] = "fba:session:"
     app.config["SESSION_PERMANENT"] = True
-    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
     app.config["SESSION_SERIALIZATION_FORMAT"] = "json"
     Session(app)
 
 # Initialize Flask-Login (return 401 JSON for unauthorized API requests)
 login_manager.init_app(app)
+
+
+@app.after_request
+def set_security_headers(response):
+    """Apply standard security headers to every response."""
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # CSP: allow same-origin scripts/styles plus inline (React build inlines chunks)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+    return response
 
 
 @login_manager.unauthorized_handler
@@ -691,20 +720,9 @@ def auth_yahoo():
     if not Config.YAHOO_CLIENT_ID:
         return jsonify({"error": "YAHOO_CLIENT_ID not configured"}), 500
     url = build_auth_url()
-    logger.info("Redirecting user to Yahoo OAuth: %s", url)
+    logger.info("Redirecting user to Yahoo OAuth authorization.")
     return redirect(url)
 
-
-@app.route("/debug/auth-url")
-def debug_auth_url():
-    """Show the exact OAuth authorization URL for debugging (dev only)."""
-    url = build_auth_url()
-    return jsonify({
-        "auth_url": url,
-        "client_id": Config.YAHOO_CLIENT_ID,
-        "redirect_uri": Config.YAHOO_REDIRECT_URI,
-        "redirect_uri_env": os.environ.get("YAHOO_REDIRECT_URI", "(not set)"),
-    })
 
 
 @app.route("/auth/yahoo/callback")
@@ -713,7 +731,13 @@ def auth_yahoo_callback():
     error = request.args.get("error")
     if error:
         logger.warning("Yahoo OAuth error: %s", error)
-        return redirect("/?auth_error=" + error)
+        return redirect("/?auth_error=" + quote(error, safe=""))
+
+    # Validate OAuth state parameter to prevent CSRF
+    received_state = request.args.get("state", "")
+    if not validate_oauth_state(received_state):
+        logger.warning("OAuth callback rejected: state mismatch (possible CSRF attempt)")
+        return redirect("/?auth_error=state_mismatch")
 
     code = request.args.get("code")
     if not code:
@@ -735,34 +759,6 @@ def auth_yahoo_callback():
     logger.info("User %s (%s) logged in via Yahoo OAuth.", display_name, yahoo_guid)
     return redirect("/")
 
-
-@app.route("/auth/code", methods=["POST"])
-def auth_manual_code():
-    """Accept a manually-entered authorization code (OOB fallback).
-
-    If Yahoo shows the authorization code on-screen instead of redirecting,
-    users can paste it here to complete login.
-    """
-    data = request.get_json()
-    code = (data.get("code") or "").strip()
-    if not code:
-        return jsonify({"error": "Authorization code is required."}), 400
-
-    tokens = exchange_code_for_tokens(code)
-    if not tokens:
-        return jsonify({"error": "Failed to exchange code for tokens. The code may have expired."}), 400
-
-    yahoo_guid, display_name = fetch_yahoo_user_info(tokens["access_token"])
-    store_user_session(yahoo_guid, display_name, tokens)
-
-    if not session.get("league_id"):
-        stored = _restore_league_id(yahoo_guid)
-        if stored:
-            session["league_id"] = stored
-            session.modified = True
-
-    logger.info("User %s (%s) logged in via manual code entry.", display_name, yahoo_guid)
-    return jsonify({"status": "success", "user_name": display_name})
 
 
 @app.route("/logout", methods=["POST"])
@@ -797,6 +793,7 @@ def api_config():
 
 
 @app.route("/api/overview", methods=["GET"])
+@login_required
 def api_overview():
     """Return standings overview payload for React clients."""
     league_id = _get_league_id()
@@ -805,6 +802,7 @@ def api_overview():
 
 
 @app.route("/api/analysis", methods=["GET"])
+@login_required
 def api_analysis():
     """Return target-category analysis payload for React clients."""
     league_id = _get_league_id()
@@ -813,6 +811,7 @@ def api_analysis():
 
 
 @app.route("/api/games-played", methods=["GET"])
+@login_required
 def api_games_played():
     """Return games played analysis payload for React clients."""
     league_id = _get_league_id()
@@ -822,6 +821,7 @@ def api_games_played():
 
 
 @app.route("/api/executive-summary", methods=["GET"])
+@login_required
 def api_executive_summary():
     """Return executive-summary payload for React clients."""
     league_id = _get_league_id()
@@ -906,17 +906,17 @@ def refresh():
         clear_user_session()
         return jsonify({
             "status": "error",
-            "error": str(e),
+            "error": "Authentication failed. Please log in again.",
             "session_expired": True,
         }), 401
 
     except YahooAPIError as e:
         logger.error("Yahoo API error: %s", e)
-        return jsonify({"status": "error", "error": str(e)}), 500
+        return jsonify({"status": "error", "error": "Failed to fetch data from Yahoo. Please try again."}), 500
 
     except Exception as e:
-        logger.error("Unexpected error during refresh: %s", e)
-        return jsonify({"status": "error", "error": str(e)}), 500
+        logger.error("Unexpected error during refresh: %s", e, exc_info=True)
+        return jsonify({"status": "error", "error": "An unexpected error occurred. Please try again."}), 500
 
 
 @app.route("/assets/<path:filename>", methods=["GET"])

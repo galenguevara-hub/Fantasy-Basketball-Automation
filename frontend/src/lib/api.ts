@@ -55,12 +55,6 @@ export function logout() {
   return fetchJson<{ status: string }>("/logout", { method: "POST" });
 }
 
-export function submitAuthCode(code: string) {
-  return fetchJson<{ status: string; user_name: string }>("/auth/code", {
-    method: "POST",
-    body: JSON.stringify({ code }),
-  });
-}
 
 export function getConfig(signal?: AbortSignal) {
   return fetchJson<ConfigPayload>("/api/config", { signal });

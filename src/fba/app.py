@@ -760,34 +760,6 @@ def auth_yahoo_callback():
     return redirect("/")
 
 
-@app.route("/auth/code", methods=["POST"])
-def auth_manual_code():
-    """Accept a manually-entered authorization code (OOB fallback).
-
-    If Yahoo shows the authorization code on-screen instead of redirecting,
-    users can paste it here to complete login.
-    """
-    data = request.get_json()
-    code = (data.get("code") or "").strip()
-    if not code:
-        return jsonify({"error": "Authorization code is required."}), 400
-
-    tokens = exchange_code_for_tokens(code)
-    if not tokens:
-        return jsonify({"error": "Failed to exchange code for tokens. The code may have expired."}), 400
-
-    yahoo_guid, display_name = fetch_yahoo_user_info(tokens["access_token"])
-    store_user_session(yahoo_guid, display_name, tokens)
-
-    if not session.get("league_id"):
-        stored = _restore_league_id(yahoo_guid)
-        if stored:
-            session["league_id"] = stored
-            session.modified = True
-
-    logger.info("User %s (%s) logged in via manual code entry.", display_name, yahoo_guid)
-    return jsonify({"status": "success", "user_name": display_name})
-
 
 @app.route("/logout", methods=["POST"])
 def logout():

@@ -206,7 +206,11 @@ def build_auth_url() -> str:
 
     # In local dev, route the OAuth callback through production so Yahoo only
     # ever sees the stable production redirect URI.
-    is_local = not Config.REDIS_URL
+    # Use YAHOO_REDIRECT_URI itself as the signal: if it points to prod, we're
+    # in local dev mode (local .env always sets the prod URL; production Fly.io
+    # also sets the prod URL but has FLY_APP_NAME set to distinguish).
+    import os
+    is_local = not os.environ.get("FLY_APP_NAME")
     if is_local:
         redirect_uri = PROD_REDIRECT_URI
         # Embed a local_dev marker + the local port so production can bounce back.

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ChangeEvent, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
+import { CategoryGapChart } from "../components/CategoryGapChart";
 import { DataTable } from "../components/DataTable";
 import { StatusPanel } from "../components/StatusPanel";
 import { getAnalysis } from "../lib/api";
@@ -80,6 +81,15 @@ function renderTeamWithRank(value: unknown, teamPgRank: Record<string, string>):
   );
 }
 
+function isPctRow(row: Record<string, unknown>) {
+  const cat = row.category;
+  return cat === "FG%" || cat === "FT%";
+}
+
+function fmtCatValue(value: unknown, row: Record<string, unknown>) {
+  return formatFixed(value, isPctRow(row) ? 4 : 3);
+}
+
 function analysisColumns(teamPgRank: Record<string, string>) {
   return [
     {
@@ -89,7 +99,7 @@ function analysisColumns(teamPgRank: Record<string, string>) {
       headerClassName: "col-cat",
       cellClassName: "col-cat"
     },
-    { key: "value", label: "Value", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
+    { key: "value", label: "Value", align: "right" as const, render: fmtCatValue },
     { key: "rank", label: "Rank", align: "right" as const },
     {
       key: "next_better_team",
@@ -99,8 +109,8 @@ function analysisColumns(teamPgRank: Record<string, string>) {
       cellClassName: "col-ref",
       render: (value: unknown) => renderTeamWithRank(value, teamPgRank)
     },
-    { key: "next_better_value", label: "Value", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-    { key: "gap_up", label: "Gap+", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
+    { key: "next_better_value", label: "Value", align: "right" as const, render: fmtCatValue },
+    { key: "gap_up", label: "Gap+", align: "right" as const, render: fmtCatValue },
     { key: "z_gap_up", label: "z+", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
     {
       key: "next_worse_team",
@@ -110,8 +120,8 @@ function analysisColumns(teamPgRank: Record<string, string>) {
       cellClassName: "col-ref",
       render: (value: unknown) => renderTeamWithRank(value, teamPgRank)
     },
-    { key: "next_worse_value", label: "Value", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
-    { key: "gap_down", label: "Gap−", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
+    { key: "next_worse_value", label: "Value", align: "right" as const, render: fmtCatValue },
+    { key: "gap_down", label: "Gap−", align: "right" as const, render: fmtCatValue },
     { key: "z_gap_down", label: "z−", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
     { key: "target_score", label: "Score", align: "right" as const, render: (value: unknown) => formatFixed(value, 2) },
     { key: "is_target", label: "Target", align: "center" as const, cellClassName: "col-tag", render: (v: unknown) => v ? <span className="tag tag-target">TARGET</span> : "—" },
@@ -445,6 +455,10 @@ export function AnalysisPage() {
             </p>
             <DataTable columns={LEAGUE_COLUMNS} initialSort={{ key: "rank_total", desc: true }} rows={leagueRows} />
           </section>
+
+          {data.gap_chart && data.gap_chart.length > 0 ? (
+            <CategoryGapChart rows={data.gap_chart} selectedTeam={data.selected_team} />
+          ) : null}
         </>
       ) : null}
     </AppShell>

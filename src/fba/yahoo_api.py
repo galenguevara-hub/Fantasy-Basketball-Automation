@@ -198,18 +198,39 @@ def _get_team_stats_raw(
     team_data = data["fantasy_content"]["team"]
     raw_stats = team_data[1]["team_stats"]["stats"]
 
+    # Yahoo composite stat IDs: "9004003" = FGM/FGA, "9007006" = FTM/FTA.
+    # Values are slash-separated like "5047/10542".
+    _COMPOSITE_STATS: dict[str, tuple[str, str]] = {
+        "9004003": ("FGM", "FGA"),
+        "9007006": ("FTM", "FTA"),
+    }
+
     # Build the set of stat_ids to ingest (scoring categories + GP)
     if stat_id_configs is not None:
-        allowed_ids = set(stat_id_configs.keys()) | {0, 2, 3, 6, 7}  # GP + component stats for time series
+        allowed_ids = set(stat_id_configs.keys()) | {0}  # GP always included
     else:
         allowed_ids = set(STAT_ID_MAP.keys())
 
     stats = {}
     for entry in raw_stats:
-        stat_id = entry["stat"]["stat_id"]
+        stat_id = str(entry["stat"]["stat_id"])
         value = entry["stat"]["value"]
 
-        stat_id_int = int(stat_id) if isinstance(stat_id, str) else stat_id
+        # Parse composite stats (FGM/FGA, FTM/FTA)
+        if stat_id in _COMPOSITE_STATS:
+            makes_key, attempts_key = _COMPOSITE_STATS[stat_id]
+            if value and "/" in str(value):
+                parts = str(value).split("/")
+                try:
+                    stats[makes_key] = int(parts[0])
+                    stats[attempts_key] = int(parts[1])
+                except (ValueError, IndexError):
+                    pass
+            continue
+
+        stat_id_int = int(stat_id) if stat_id.isdigit() else None
+        if stat_id_int is None:
+            continue
 
         if stat_id_int not in allowed_ids:
             continue
@@ -265,13 +286,25 @@ def compute_roto_points(
 
     roto: dict[str, dict] = {t["team_name"]: {} for t in teams_data}
 
+    # Component stats for recomputing percentages with full precision.
+    # Yahoo rounds FG%/FT% to 3 decimals; recomputing breaks false ties.
+    pct_components = {"FG%": ("FGM", "FGA"), "FT%": ("FTM", "FTA")}
+
     for cat_key, higher_is_better in cats:
         # Collect (value, team_name) pairs, skip teams with missing data
         entries = []
         for t in teams_data:
             val = t["stats"].get(cat_key)
-            if val is not None:
-                entries.append((float(val), t["team_name"]))
+            if val is None:
+                continue
+            # Recompute percentage stats from components for full precision
+            components = pct_components.get(cat_key)
+            if components:
+                makes = t["stats"].get(components[0])
+                attempts = t["stats"].get(components[1])
+                if makes is not None and attempts is not None and attempts > 0:
+                    val = makes / attempts
+            entries.append((float(val), t["team_name"]))
 
         # Sort so that worst value comes first (rank 1) and best comes last (rank N).
         # For higher-is-better: ascending sort (lowest = worst).

@@ -199,7 +199,10 @@ const COMPETITION_COLUMNS = [
 
 const STABILITY_COLUMNS = [
   { key: "category", label: "Category", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
-  { key: "sigma", label: "Std Dev", align: "right" as const, render: (value: unknown) => formatFixed(value, 3) },
+  { key: "sigma", label: "Std Dev", align: "right" as const, render: (value: unknown, row: Record<string, unknown>) => {
+    const cat = row.category;
+    return formatFixed(value, cat === "FG%" || cat === "FT%" ? 4 : 3);
+  } },
   { key: "volatility", label: "Stability", align: "center" as const, render: renderStability },
 ];
 

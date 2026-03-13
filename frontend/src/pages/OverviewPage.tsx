@@ -109,15 +109,27 @@ function toOverallRows(teams: TeamRow[], config: CategoryMeta[]) {
   });
 }
 
-function toOverallStatsRows(teams: TeamRow[], config: CategoryMeta[]) {
+function toOverallStatsRows(teams: TeamRow[], config: CategoryMeta[], pgRows: Record<string, unknown>[]) {
+  // Build lookup from per_game_rows to get recomputed FG%/FT% (full precision)
+  const pgByTeam: Record<string, Record<string, unknown>> = {};
+  for (const r of pgRows) {
+    pgByTeam[r.team_name as string] = r;
+  }
+
   return teams.map((team) => {
     const row: Record<string, unknown> = {
       rank: team.rank,
       team_name: team.team_name,
       GP: team.stats.GP,
     };
+    const pgRow = pgByTeam[team.team_name];
     for (const c of config) {
-      row[c.key] = team.stats[c.key];
+      // For percentage stats, prefer recomputed value from per_game_rows (full precision)
+      if (c.is_percentage && pgRow && pgRow[c.key] != null) {
+        row[c.key] = pgRow[c.key];
+      } else {
+        row[c.key] = team.stats[c.key];
+      }
     }
     return row;
   });
@@ -177,7 +189,7 @@ export function OverviewPage() {
           <section>
             <h2>Overall Stats</h2>
             <p className="section-note">Raw season totals from Yahoo before per-game normalization.</p>
-            <DataTable columns={overallStatsColumns} initialSort={{ key: "rank", desc: false }} rows={toOverallStatsRows(data.teams, catConfig)} />
+            <DataTable columns={overallStatsColumns} initialSort={{ key: "rank", desc: false }} rows={toOverallStatsRows(data.teams, catConfig, perGameRows)} />
           </section>
 
           <section>

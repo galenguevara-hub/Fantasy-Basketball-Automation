@@ -95,6 +95,10 @@ def validate_oauth_state(received_state: str) -> bool:
 
     Returns True if the state matches and clears it from the session.
     Returns False if missing or mismatched.
+
+    When the local-dev bounce path is used, the state arriving at the local
+    callback is the bare token (the ``local_dev:<port>:`` prefix was stripped
+    by the production handler before forwarding).
     """
     expected = session.pop("oauth_state", None)
     session.modified = True
@@ -181,25 +185,51 @@ def get_valid_tokens() -> dict | None:
 # OAuth2 Authorization Code flow helpers
 # ---------------------------------------------------------------------------
 
+PROD_REDIRECT_URI = "https://roto-fantasy-solver.fly.dev/auth/yahoo/callback"
+
+
 def build_auth_url() -> str:
     """Build the Yahoo OAuth2 authorization redirect URL.
 
     Generates a cryptographically random state token, stores it in the session,
     and includes it in the URL for CSRF protection on the callback.
+
+    Local dev mode: if REDIS_URL is not set (i.e. running locally), Yahoo is
+    always told to redirect to the production callback URL. The production
+    handler will detect the ``local_dev:<port>:`` prefix in the state and bounce
+    the request back to localhost to complete the flow — so Yahoo only ever
+    needs one registered callback URL.
     """
     state = secrets.token_urlsafe(32)
     session["oauth_state"] = state
     session.modified = True
 
+    # In local dev, route the OAuth callback through production so Yahoo only
+    # ever sees the stable production redirect URI.
+    is_local = not Config.REDIS_URL
+    if is_local:
+        redirect_uri = PROD_REDIRECT_URI
+        # Embed a local_dev marker + the local port so production can bounce back.
+        import re
+        local_port = "8080"
+        if Config.YAHOO_REDIRECT_URI:
+            m = re.search(r":(\d+)/", Config.YAHOO_REDIRECT_URI)
+            if m:
+                local_port = m.group(1)
+        yahoo_state = f"local_dev:{local_port}:{state}"
+    else:
+        redirect_uri = Config.YAHOO_REDIRECT_URI
+        yahoo_state = state
+
     params = {
         "client_id": Config.YAHOO_CLIENT_ID,
-        "redirect_uri": Config.YAHOO_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "response_type": "code",
         "language": "en-us",
-        "state": state,
+        "state": yahoo_state,
     }
     url = f"{YAHOO_AUTH_URL}?{urlencode(params)}"
-    logger.info("OAuth authorization URL built (redirect_uri=%s)", Config.YAHOO_REDIRECT_URI)
+    logger.info("OAuth authorization URL built (redirect_uri=%s)", redirect_uri)
     return url
 
 

@@ -23,7 +23,7 @@ from flask_login import current_user, login_required
 from flask_session import Session
 from redis import Redis
 
-from fba.analysis.category_targets import compute_gaps_and_scores
+from fba.analysis.category_targets import compute_gap_chart_data, compute_gaps_and_scores
 from fba.analysis.cluster_leverage import compute_cluster_metrics
 from fba.analysis.games_played import (
     COUNTING_CATEGORIES,
@@ -377,6 +377,7 @@ def _build_analysis_payload(data: Optional[dict], league_id: str, selected_team:
             "team_cluster": {},
             "team_pg_rank": {},
             "league_summary": [],
+            "gap_chart": [],
             "scraped_at": None,
             "league_id": league_id,
             "has_data": False,
@@ -438,6 +439,9 @@ def _build_analysis_payload(data: Optional[dict], league_id: str, selected_team:
             "cluster_defends": cluster_defends,
         })
 
+    # Gap chart data for the selected team
+    gap_chart = compute_gap_chart_data(per_game_rows, selected_team, cat_config) if selected_team else []
+
     return {
         "team_names": team_names,
         "selected_team": selected_team,
@@ -445,6 +449,7 @@ def _build_analysis_payload(data: Optional[dict], league_id: str, selected_team:
         "team_cluster": team_cluster,
         "team_pg_rank": team_pg_rank,
         "league_summary": league_summary,
+        "gap_chart": gap_chart,
         "scraped_at": scraped_at,
         "league_id": league_id,
         "has_data": True,
@@ -731,14 +736,37 @@ def auth_yahoo():
 
 @app.route("/auth/yahoo/callback")
 def auth_yahoo_callback():
-    """Handle the OAuth callback from Yahoo."""
+    """Handle the OAuth callback from Yahoo.
+
+    Also serves as the production relay for local-dev OAuth: when the state
+    parameter begins with ``local_dev:<port>:``, the request is bounced to
+    ``http://localhost:<port>/auth/yahoo/callback`` with the bare state token.
+    This lets local dev use the stable production redirect URI so Yahoo only
+    ever needs one registered callback URL — no tunnel URLs required.
+    """
     error = request.args.get("error")
     if error:
         logger.warning("Yahoo OAuth error: %s", error)
         return redirect("/?auth_error=" + quote(error, safe=""))
 
-    # Validate OAuth state parameter to prevent CSRF
     received_state = request.args.get("state", "")
+
+    # Local-dev relay: bounce back to localhost if state has the local_dev prefix.
+    if received_state.startswith("local_dev:"):
+        parts = received_state.split(":", 2)
+        if len(parts) == 3:
+            _, local_port, bare_state = parts
+            code = request.args.get("code", "")
+            from urllib.parse import urlencode as _urlencode
+            qs = _urlencode({"code": code, "state": bare_state})
+            local_url = f"http://localhost:{local_port}/auth/yahoo/callback?{qs}"
+            logger.info("Local-dev OAuth relay: bouncing to %s", local_url)
+            return redirect(local_url)
+        # Malformed local_dev state — fall through to normal rejection
+        logger.warning("Malformed local_dev state: %s", received_state)
+        return redirect("/?auth_error=state_mismatch")
+
+    # Validate OAuth state parameter to prevent CSRF
     if not validate_oauth_state(received_state):
         logger.warning("OAuth callback rejected: state mismatch (possible CSRF attempt)")
         return redirect("/?auth_error=state_mismatch")

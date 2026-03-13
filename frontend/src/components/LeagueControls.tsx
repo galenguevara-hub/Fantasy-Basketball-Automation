@@ -85,7 +85,7 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
       show("League connected and standings refreshed.");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        window.open("/auth/yahoo", "_blank");
+        window.location.href = "/auth/yahoo";
         return;
       }
       if (handleRateLimitError(err)) return;
@@ -103,7 +103,7 @@ export function LeagueControls({ leagueId, loading, onReload, onAuthChange }: Le
       show("Standings refreshed.");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        window.open("/auth/yahoo", "_blank");
+        window.location.href = "/auth/yahoo";
         return;
       }
       if (handleRateLimitError(err)) return;

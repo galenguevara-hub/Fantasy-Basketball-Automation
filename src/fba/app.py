@@ -71,7 +71,7 @@ app.secret_key = Config.SECRET_KEY
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 # Only send cookies over HTTPS in production (Fly.io enforces HTTPS; skip for local dev)
-app.config["SESSION_COOKIE_SECURE"] = bool(Config.REDIS_URL)
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("FLY_APP_NAME"))
 
 # Redis-backed sessions (only when REDIS_URL is configured)
 _redis_client: "Redis | None" = None

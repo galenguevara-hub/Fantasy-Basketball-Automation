@@ -41,20 +41,11 @@ function buildPerGameColumns(config: CategoryMeta[]) {
     { key: "GP", label: "GP", align: "right" as const },
     ...config.map((c) => {
       const dataKey = c.per_game_key ?? c.key;
-      if (c.is_percentage) {
-        return {
-          key: dataKey,
-          label: c.per_game_display,
-          align: "right" as const,
-          render: (value: unknown) => formatFixed(value, 3),
-          sortValue: (_: unknown, row: Record<string, unknown>) => row[`${c.key}_roto`] ?? row[c.key],
-        };
-      }
       return {
         key: dataKey,
         label: c.per_game_display,
         align: "right" as const,
-        render: (value: unknown) => formatFixed(value, 3),
+        render: (value: unknown) => c.is_percentage ? formatFixed(value, 4) : formatFixed(value, 3),
       };
     }),
   ];
@@ -65,23 +56,12 @@ function buildOverallStatsColumns(config: CategoryMeta[]) {
     { key: "team_name", label: "Team", align: "left" as const, headerClassName: "col-team", cellClassName: "col-team" },
     { key: "rank", label: "Rank", align: "right" as const },
     { key: "GP", label: "GP", align: "right" as const, render: (value: unknown) => formatCompact(value, 1) },
-    ...config.map((c) => {
-      if (c.is_percentage) {
-        return {
-          key: c.key,
-          label: c.display,
-          align: "right" as const,
-          render: (value: unknown) => formatFixed(value, 3),
-          sortValue: (_: unknown, row: Record<string, unknown>) => row[`${c.key}_roto`] ?? row[c.key],
-        };
-      }
-      return {
-        key: c.key,
-        label: c.display,
-        align: "right" as const,
-        render: (value: unknown) => formatCompact(value, 1),
-      };
-    }),
+    ...config.map((c) => ({
+      key: c.key,
+      label: c.display,
+      align: "right" as const,
+      render: (value: unknown) => c.is_percentage ? formatFixed(value, 4) : formatCompact(value, 1),
+    })),
   ];
 }
 
@@ -138,9 +118,6 @@ function toOverallStatsRows(teams: TeamRow[], config: CategoryMeta[]) {
     };
     for (const c of config) {
       row[c.key] = team.stats[c.key];
-      if (c.is_percentage) {
-        row[`${c.key}_roto`] = team.roto_points[c.key];
-      }
     }
     return row;
   });
@@ -158,17 +135,7 @@ export function OverviewPage() {
   const overallStatsColumns = useMemo(() => buildOverallStatsColumns(catConfig), [catConfig]);
   const rankingColumns = useMemo(() => buildRankingColumns(catConfig), [catConfig]);
 
-  const perGameRows = data?.per_game_rows.map((row) => {
-    const team = data.teams.find((t) => t.team_name === row.team_name);
-    if (!team) return row;
-    const extra: Record<string, unknown> = {};
-    for (const c of catConfig) {
-      if (c.is_percentage) {
-        extra[`${c.key}_roto`] = team.roto_points[c.key];
-      }
-    }
-    return { ...row, ...extra };
-  }) ?? [];
+  const perGameRows = data?.per_game_rows ?? [];
 
   const hasData = Boolean(data?.has_data);
   const leagueId = data?.league_id ?? "";

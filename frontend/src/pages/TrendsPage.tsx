@@ -31,7 +31,7 @@ const WINDOW_LABELS: Record<string, string> = {
 
 function formatStatValue(value: number | null | undefined, isPct: boolean): string {
   if (value === null || value === undefined) return "—";
-  return isPct ? (value * 100).toFixed(1) + "%" : formatFixed(value, 1);
+  return isPct ? formatFixed(value, 4) : formatFixed(value, 3);
 }
 
 function deltaClass(delta: number | null | undefined, higherIsBetter: boolean): string {
@@ -169,35 +169,50 @@ export function TrendsPage() {
             )}
 
             {data.scorecard && (
-              <div className="trends-scorecard-table" style={{ overflowX: "auto", marginTop: 16 }}>
-                <table className="data-table">
+              <div className="table-wrap" style={{ marginTop: 16 }}>
+                <table>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left" }}>Category</th>
+                      <th className="align-left">Category</th>
                       {Object.keys(WINDOW_LABELS).map((wk) => (
-                        <th key={wk} style={{ textAlign: "right" }}>{WINDOW_LABELS[wk]}</th>
+                        <th key={wk}>{WINDOW_LABELS[wk]}</th>
                       ))}
-                      <th style={{ textAlign: "right" }}>Season Avg</th>
+                      <th>Season Avg</th>
+                      <th>Leader Avg</th>
                     </tr>
                   </thead>
                   <tbody>
                     {categories.map((cat: TrendsCategoryInfo) => {
                       const seasonAvg = data.season_averages?.[data.selected_team ?? ""]?.[cat.key];
+                      // Find the league leader's season average for this category
+                      let leaderValue: number | null = null;
+                      let leaderTeam: string | null = null;
+                      if (data.season_averages) {
+                        for (const [teamName, avgs] of Object.entries(data.season_averages)) {
+                          const val = avgs[cat.key];
+                          if (val == null) continue;
+                          if (leaderValue === null ||
+                            (cat.higher_is_better ? val > leaderValue : val < leaderValue)) {
+                            leaderValue = val;
+                            leaderTeam = teamName;
+                          }
+                        }
+                      }
                       return (
                         <tr key={cat.key}>
-                          <td style={{ textAlign: "left", fontWeight: 500 }}>{cat.display}</td>
+                          <td className="align-left" style={{ fontWeight: 500 }}>{cat.display}</td>
                           {Object.keys(WINDOW_LABELS).map((wk) => {
                             const window: TrendsWindowData | undefined = data.scorecard?.windows[wk];
                             if (!window?.available) {
-                              return <td key={wk} style={{ textAlign: "right", color: "var(--muted)" }}>—</td>;
+                              return <td key={wk} style={{ color: "var(--muted)" }}>—</td>;
                             }
                             const stat = window.categories[cat.key];
                             if (!stat || stat.value === null) {
-                              return <td key={wk} style={{ textAlign: "right", color: "var(--muted)" }}>—</td>;
+                              return <td key={wk} style={{ color: "var(--muted)" }}>—</td>;
                             }
                             const cls = deltaClass(stat.vs_own_avg, cat.higher_is_better);
                             return (
-                              <td key={wk} style={{ textAlign: "right" }} className={cls}>
+                              <td key={wk} className={cls}>
                                 {formatStatValue(stat.value, cat.is_percentage)}
                                 {stat.vs_own_avg !== null && (
                                   <span className="trend-delta">
@@ -208,8 +223,15 @@ export function TrendsPage() {
                               </td>
                             );
                           })}
-                          <td style={{ textAlign: "right", color: "var(--muted)" }}>
+                          <td style={{ color: "var(--muted)" }}>
                             {formatStatValue(seasonAvg, cat.is_percentage)}
+                          </td>
+                          <td>
+                            {leaderValue != null ? (
+                              <span title={leaderTeam ?? ""}>
+                                {formatStatValue(leaderValue, cat.is_percentage)}
+                              </span>
+                            ) : "—"}
                           </td>
                         </tr>
                       );

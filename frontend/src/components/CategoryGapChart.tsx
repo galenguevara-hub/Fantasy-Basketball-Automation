@@ -10,7 +10,7 @@ interface Props {
 
 function fmtValue(value: number | null | undefined, isPct: boolean): string {
   if (value === null || value === undefined) return "—";
-  return isPct ? value.toFixed(4) : value.toFixed(1);
+  return isPct ? value.toFixed(4) : value.toFixed(3);
 }
 
 function fmtZ(value: number | null | undefined): string {

@@ -1072,6 +1072,14 @@ def frontend_assets(filename: str):
     return send_from_directory(assets_dir, filename)
 
 
+@app.errorhandler(404)
+def spa_catch_all(e):
+    """Serve React index.html for client-side routes (SPA fallback)."""
+    if not _is_legacy_ui_mode() and _has_frontend_build():
+        return _render_react_index()
+    return e
+
+
 if __name__ == "__main__":
     port = 8080
     logger.info("=" * 60)

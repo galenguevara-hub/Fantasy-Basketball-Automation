@@ -316,7 +316,7 @@ export function TrendsPage() {
                       tick={{ fontSize: 11 }}
                       domain={["auto", "auto"]}
                       tickFormatter={(v: number) =>
-                        activeCat?.is_percentage ? (v * 100).toFixed(0) + "%" : v.toFixed(1)
+                        activeCat?.is_percentage ? formatFixed(v, 4) : formatFixed(v, 3)
                       }
                     />
                     <Tooltip

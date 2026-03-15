@@ -1230,7 +1230,8 @@ tbody tr.row-selected:hover td:first-child {
   }
 
   .trend-delta {
-    display: none;
+    display: block;
+    margin-top: 2px;
   }
 }
 

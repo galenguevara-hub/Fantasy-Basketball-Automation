@@ -323,8 +323,8 @@ export function TrendsPage() {
                       formatter={(value: unknown) => {
                         const num = typeof value === "number" ? value : 0;
                         return activeCat?.is_percentage
-                          ? (num * 100).toFixed(1) + "%"
-                          : num.toFixed(2);
+                          ? formatFixed(num, 4)
+                          : formatFixed(num, 3);
                       }}
                       labelFormatter={(label: unknown) => `Date: ${String(label)}`}
                     />

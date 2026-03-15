@@ -193,7 +193,15 @@ def compute_chart_data(
             team_stats: dict[str, float | None] = {}
             for cfg in category_configs:
                 if cfg.is_percentage:
-                    team_stats[cfg.key] = _safe_float(stats.get(cfg.key)) or None
+                    # Recompute from components for full precision
+                    components = _PCT_COMPONENTS.get(cfg.key)
+                    if components:
+                        made_key, att_key = components
+                        made = _safe_float(stats.get(made_key, 0))
+                        att = _safe_float(stats.get(att_key, 0))
+                        team_stats[cfg.key] = made / att if att > 0 else None
+                    else:
+                        team_stats[cfg.key] = _safe_float(stats.get(cfg.key)) or None
                 else:
                     # Per-game from season totals
                     val = _safe_float(stats.get(cfg.key, 0))

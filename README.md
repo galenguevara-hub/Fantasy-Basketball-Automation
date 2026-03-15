@@ -3,7 +3,7 @@
 Yahoo Fantasy Basketball analysis app with a Flask backend, React frontend,
 Yahoo OAuth login, and direct Yahoo Fantasy API refreshes.
 
-## Current State (March 11, 2026)
+## Current State (March 15, 2026)
 
 Supported runtime/deployment path:
 
@@ -26,6 +26,12 @@ Archived one-off tooling and deprecated flows live in `legacy/`.
   logic is now driven by config — no more hard-coded 8-category assumptions
 - Directionality support: categories with `higher_is_better=False` (e.g. TO in
   9-cat leagues) sort and gap-calculate correctly throughout the entire pipeline
+- Percentage precision upgrade: FG%/FT% are recomputed from component stats
+  (`FGM/FGA`, `FTM/FTA`) when available instead of relying on Yahoo's rounded
+  percentage values
+- Tie-aware category gaps: Layer 1 now uses adjacent rank order for `gap_up`
+  and `gap_down` so tied teams still receive actionable neighbor data
+- `/api/analysis` now includes `gap_chart` data for the Category Gap Chart
 - Frontend receives `category_config` in `/api/overview` and builds all column
   definitions dynamically; falls back to `DEFAULT_8CAT_CONFIG` for old files
 - League validation on refresh: non-NBA leagues and non-roto scoring leagues are
@@ -48,6 +54,8 @@ Archived one-off tooling and deprecated flows live in `legacy/`.
   scores retained for diagnostics/rollback
 - Executive Summary is the default React landing page (`/`)
 - Standings view at dedicated client route (`/standings`)
+- Time-series DB startup now uses SQLite WAL + busy timeout and a safe
+  checkpoint pass (no WAL/SHM file deletion)
 
 ## Environment Variables
 
@@ -119,11 +127,15 @@ App URL: `http://localhost:8080`
 
 Compose defaults:
 
-- `YAHOO_REDIRECT_URI=http://localhost:8080/auth/yahoo/callback`
 - `REDIS_URL=redis://redis:6379/0`
 - `FBA_UI_MODE=react`
 
-Provide `YAHOO_CLIENT_ID` and `YAHOO_CLIENT_SECRET` in your shell or `.env`.
+Compose passthrough (from host shell / `.env`):
+
+- `YAHOO_REDIRECT_URI` (set this explicitly, e.g. `http://localhost:8080/auth/yahoo/callback`)
+
+Provide `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`, and `YAHOO_REDIRECT_URI` in
+your shell or `.env`.
 
 ## Docker Image Notes
 
@@ -135,8 +147,9 @@ Provide `YAHOO_CLIENT_ID` and `YAHOO_CLIENT_SECRET` in your shell or `.env`.
 Runtime details:
 
 - non-root `fba` user
+- writable `/app/data` owned by `fba`
 - port `8080`
-- Gunicorn `--workers 2 --timeout 120`
+- Gunicorn `--workers 2 --preload --timeout 120`
 
 ## Fly.io Deployment
 
@@ -188,9 +201,9 @@ Legacy template mode still reads:
 
 ## Verification Snapshot
 
-Latest recorded verification (March 11, 2026):
+Latest recorded verification (March 15, 2026):
 
-- `./venv/bin/pytest -q` → `192 passed`
+- `./venv/bin/pytest -q` → `212 passed`
 - `npm --prefix frontend run build` → passed
 - Deployed to `https://roto-fantasy-solver.fly.dev`
 

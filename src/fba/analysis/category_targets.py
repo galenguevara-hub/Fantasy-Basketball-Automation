@@ -172,42 +172,35 @@ def compute_gaps_and_scores(
                 cat_analyses.append(_none_entry(cat, rank))
                 continue
 
-            # --- Gap up (effort): find nearest team with strictly better value ---
-            # In sorted list, positions 0..team_pos-1 are better teams.
+            # --- Gap up (effort): find nearest team ranked above ---
+            # In sorted list, positions 0..team_pos-1 are better-ranked teams.
+            # A team directly above in sort order counts even if its value
+            # is the same (Yahoo rounds percentages, hiding micro-gaps).
             next_better_team = None
             next_better_value = None
             gap_up = None
             z_gap_up = None
 
-            for j in range(team_pos - 1, -1, -1):
-                candidate = sorted_teams[j]
-                cv = candidate[key]
-                # "strictly better" depends on directionality
-                is_strictly_better = (cv > value) if hib else (cv < value)
-                if is_strictly_better:
-                    next_better_team = candidate["team_name"]
-                    next_better_value = cv
-                    gap_up = abs(cv - value)
-                    break
+            if team_pos > 0:
+                candidate = sorted_teams[team_pos - 1]
+                next_better_team = candidate["team_name"]
+                next_better_value = candidate[key]
+                gap_up = abs(next_better_value - value)
 
             if gap_up is not None and sigma is not None and sigma > 0:
                 z_gap_up = gap_up / sigma
 
-            # --- Gap down (risk): find nearest team with strictly worse value ---
+            # --- Gap down (risk): find nearest team ranked below ---
             next_worse_team = None
             next_worse_value = None
             gap_down = None
             z_gap_down = None
 
-            for j in range(team_pos + 1, len(sorted_teams)):
-                candidate = sorted_teams[j]
-                cv = candidate[key]
-                is_strictly_worse = (cv < value) if hib else (cv > value)
-                if is_strictly_worse:
-                    next_worse_team = candidate["team_name"]
-                    next_worse_value = cv
-                    gap_down = abs(value - cv)
-                    break
+            if team_pos < len(sorted_teams) - 1:
+                candidate = sorted_teams[team_pos + 1]
+                next_worse_team = candidate["team_name"]
+                next_worse_value = candidate[key]
+                gap_down = abs(value - next_worse_value)
 
             if gap_down is not None and sigma is not None and sigma > 0:
                 z_gap_down = gap_down / sigma
@@ -300,6 +293,140 @@ def _compute_target_score(
     risk = z_gap_down if z_gap_down is not None else 0.0
 
     return effort + RISK_WEIGHT * risk
+
+
+def compute_gap_chart_data(
+    rows: List[Dict[str, Any]],
+    selected_team: str,
+    category_config: Optional[List[CategoryConfig]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Build per-category data for the Category Gap Bar Chart.
+
+    For each category, returns the selected team's value + z-score,
+    the nearest team above/below with their values + z-scores,
+    and the league min/max for both per-game and z-score modes.
+
+    Z-scores are computed as (value - mean) / sigma for each team.
+    """
+    if not rows:
+        return []
+
+    configs = category_config if category_config else DEFAULT_8CAT_CONFIG
+    cats = get_analysis_keys(configs)
+    sigmas = compute_category_sigma(rows, configs)
+
+    # Build is_percentage lookup from the full config objects
+    pct_lookup: Dict[str, bool] = {}
+    for c in configs:
+        analysis_key = c.per_game_key if c.per_game_key else c.key
+        pct_lookup[analysis_key] = c.is_percentage
+
+    # Pre-compute means for z-score calculation
+    means: Dict[str, float] = {}
+    for cat in cats:
+        key = cat["key"]
+        values = [row[key] for row in rows if row.get(key) is not None]
+        if values:
+            means[key] = sum(values) / len(values)
+
+    # Compute z-scores for all teams
+    team_zscores: Dict[str, Dict[str, Optional[float]]] = {}
+    for row in rows:
+        name = row["team_name"]
+        zs: Dict[str, Optional[float]] = {}
+        for cat in cats:
+            key = cat["key"]
+            val = row.get(key)
+            sigma = sigmas.get(key)
+            if val is not None and sigma is not None and sigma > 0 and key in means:
+                zs[key] = (val - means[key]) / sigma
+            else:
+                zs[key] = None
+        team_zscores[name] = zs
+
+    chart_rows: List[Dict[str, Any]] = []
+
+    for cat in cats:
+        key = cat["key"]
+        hib = cat.get("higher_is_better", True)
+
+        # Collect all valid per-game values
+        all_values = [row[key] for row in rows if row.get(key) is not None]
+        all_zscores = [
+            team_zscores[row["team_name"]][key]
+            for row in rows
+            if team_zscores.get(row["team_name"], {}).get(key) is not None
+        ]
+
+        if not all_values:
+            continue
+
+        league_min = min(all_values)
+        league_max = max(all_values)
+        z_min = min(all_zscores) if all_zscores else None
+        z_max = max(all_zscores) if all_zscores else None
+
+        # Find the selected team's row
+        my_row = next((r for r in rows if r["team_name"] == selected_team), None)
+        if my_row is None or my_row.get(key) is None:
+            continue
+
+        my_value = my_row[key]
+        my_zscore = team_zscores.get(selected_team, {}).get(key)
+
+        # Sort teams best-first to find neighbors
+        sorted_teams = _sorted_teams_for_category(rows, key, hib)
+        my_pos = next(
+            (i for i, t in enumerate(sorted_teams) if t["team_name"] == selected_team),
+            None,
+        )
+        if my_pos is None:
+            continue
+
+        # Find nearest team above (next better-ranked in sort order)
+        above_team = None
+        above_value = None
+        above_zscore = None
+        if my_pos > 0:
+            candidate = sorted_teams[my_pos - 1]
+            above_team = candidate["team_name"]
+            above_value = candidate[key]
+            above_zscore = team_zscores.get(above_team, {}).get(key)
+
+        # Find nearest team below (next worse-ranked in sort order)
+        below_team = None
+        below_value = None
+        below_zscore = None
+        if my_pos < len(sorted_teams) - 1:
+            candidate = sorted_teams[my_pos + 1]
+            below_team = candidate["team_name"]
+            below_value = candidate[key]
+            below_zscore = team_zscores.get(below_team, {}).get(key)
+
+        chart_rows.append({
+            "category": cat["name"],
+            "display": cat["display"],
+            "key": key,
+            "higher_is_better": hib,
+            "is_percentage": pct_lookup.get(key, False),
+            # Per-game mode data
+            "my_value": my_value,
+            "above_team": above_team,
+            "above_value": above_value,
+            "below_team": below_team,
+            "below_value": below_value,
+            "league_min": league_min,
+            "league_max": league_max,
+            # Z-score mode data
+            "my_zscore": my_zscore,
+            "above_zscore": above_zscore,
+            "below_zscore": below_zscore,
+            "z_min": z_min,
+            "z_max": z_max,
+        })
+
+    return chart_rows
 
 
 def _assign_tags(cat_analyses: List[Dict[str, Any]]) -> None:

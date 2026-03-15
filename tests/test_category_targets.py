@@ -193,8 +193,8 @@ class TestRankAssignment:
 class TestTieHandling:
     """Tests for tie scenarios."""
 
-    def test_tie_skips_equal_values(self):
-        """When two teams tie, next_better should skip the tied value."""
+    def test_tie_uses_adjacent_ranking(self):
+        """When two teams tie, next_better is the adjacent team in rank order (not skipped)."""
         rows = [
             _make_row("Alpha", pts=20.0, fg=0.500, ft=0.800, threes=3.0, reb=10.0, ast=8.0, stl=2.0, blk=2.0),
             _make_row("Bravo", pts=18.0, fg=0.480, ft=0.780, threes=2.5, reb=9.0, ast=7.0, stl=1.5, blk=1.5),
@@ -203,34 +203,37 @@ class TestTieHandling:
         ]
         result = compute_gaps_and_scores(rows)
 
-        # Bravo (18) tied with Charlie (18).
-        # Bravo's next_better should be Alpha (20), not Charlie.
+        # Bravo (18) tied with Charlie (18), but Bravo sorts first (alphabetical tiebreak).
+        # Bravo's next_better should be Alpha (20) — the team directly above in rank.
         bravo_pts = _find_cat(result["Bravo"], "PTS/G")
         assert bravo_pts["next_better_team"] == "Alpha"
         assert bravo_pts["gap_up"] == pytest.approx(2.0)
 
         # Charlie (18) tied with Bravo (18).
-        # Charlie's next_better should also be Alpha (20), skipping Bravo.
+        # Charlie's next_better is Bravo — the adjacent team above in rank order.
+        # gap_up is 0 because their displayed values are the same.
         charlie_pts = _find_cat(result["Charlie"], "PTS/G")
-        assert charlie_pts["next_better_team"] == "Alpha"
-        assert charlie_pts["gap_up"] == pytest.approx(2.0)
+        assert charlie_pts["next_better_team"] == "Bravo"
+        assert charlie_pts["gap_up"] == pytest.approx(0.0)
 
     def test_tie_best_in_category(self):
-        """If a team is tied for best, z_gap_up should be None (no strictly better)."""
+        """If a team is ranked first (position 0), z_gap_up should be None."""
         rows = [
             _make_row("Alpha", pts=20.0, fg=0.500, ft=0.800, threes=3.0, reb=10.0, ast=8.0, stl=2.0, blk=2.0),
             _make_row("Bravo", pts=20.0, fg=0.480, ft=0.780, threes=2.5, reb=9.0, ast=7.0, stl=1.5, blk=1.5),  # tied for best
         ]
         result = compute_gaps_and_scores(rows)
 
+        # Alpha sorts first (alphabetical tiebreak) → position 0 → no team above
         alpha_pts = _find_cat(result["Alpha"], "PTS/G")
         assert alpha_pts["z_gap_up"] is None
-        # Both tied for best with no one below in PTS → z_gap_down is None → score is None
-        assert alpha_pts["target_score"] is None
 
+        # Bravo is position 1 → Alpha is above with gap_up = 0
+        # z_gap_up is None because sigma=0 (both teams have same PTS value)
         bravo_pts = _find_cat(result["Bravo"], "PTS/G")
+        assert bravo_pts["next_better_team"] == "Alpha"
+        assert bravo_pts["gap_up"] == pytest.approx(0.0)
         assert bravo_pts["z_gap_up"] is None
-        assert bravo_pts["target_score"] is None
 
 
 class TestTargetScore:

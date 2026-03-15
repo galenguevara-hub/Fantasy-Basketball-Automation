@@ -60,9 +60,13 @@ Compose injects:
 
 - `REDIS_URL=redis://redis:6379/0`
 - `FBA_UI_MODE=react`
-- `YAHOO_REDIRECT_URI=http://localhost:8080/auth/yahoo/callback`
 
-You still need `YAHOO_CLIENT_ID` and `YAHOO_CLIENT_SECRET` in your environment.
+Compose reads this from your host shell / `.env`:
+
+- `YAHOO_REDIRECT_URI` (for local Docker, typically `http://localhost:8080/auth/yahoo/callback`)
+
+You still need `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`, and
+`YAHOO_REDIRECT_URI` in your environment.
 This is currently the simplest fully working local path because it wires Redis
 automatically.
 
@@ -113,7 +117,7 @@ Current `fly.toml` highlights:
 
 ## 8) Verification
 
-Latest recorded verification (March 11, 2026):
+Latest recorded verification (March 15, 2026):
 
 ```bash
 ./venv/bin/pytest -q
@@ -122,7 +126,7 @@ npm --prefix frontend run build
 
 Results:
 
-- pytest: `192 passed`
+- pytest: `212 passed`
 - frontend build: passed
 
 If `./venv/bin/pytest -q` fails during collection, reinstall backend

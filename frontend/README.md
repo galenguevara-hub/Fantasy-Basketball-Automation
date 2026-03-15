@@ -8,7 +8,8 @@ This directory contains the supported React + Vite UI for the default
 - `/`: executive summary decision dashboard (default landing page)
 - `/executive-summary`: executive summary alias route
 - `/standings`: standings, raw totals, per-game tables, and per-game rank totals
-- `/analysis`: Layer 1 category analysis plus Layer 2 cluster leverage
+- `/analysis`: Layer 1 category analysis, Category Gap Chart, plus Layer 2
+  cluster leverage
 - `/games-played`: games-played pace and season-window controls
 
 ## Backend Contracts
@@ -30,6 +31,8 @@ Refresh/auth behavior:
 - `401` triggers OAuth in a new tab (`window.open("/auth/yahoo", "_blank")`)
 - `429` from `/refresh` is parsed via `retry_after` and shown as a countdown
   in `LeagueControls`
+- `GET /api/analysis` includes `gap_chart` rows for per-category neighbor bars
+  (per-game and z-score modes)
 
 ## Analysis UI Semantics
 
@@ -39,6 +42,14 @@ Layer 1 table and summary:
 - categories can display as both TARGET and DEFEND
 - summary cards are split by `L1` and `Cluster` sections and sorted by
   priority score
+- gap calculations use adjacent rank neighbors, including tied-value neighbors,
+  so teams always have immediate above/below context when available
+
+Category Gap Chart:
+
+- renders from backend `gap_chart` payload in `AnalysisPayload`
+- supports per-game and z-score views with league min/max bounds per category
+- includes selected team value plus nearest above/below team values
 
 Cluster table:
 
@@ -62,6 +73,8 @@ Cluster table:
   `sortValue` per column
 - overview FG%/FT% columns sort using hidden roto sort keys for stable rank
   order
+- backend provides full-precision FG%/FT% values recomputed from makes/attempts
+  when available
 - team columns are first in main tables for consistent scanning
 
 ## Code Layout

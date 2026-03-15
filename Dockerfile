@@ -39,6 +39,7 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Non-root user for security
 RUN addgroup --system fba && adduser --system --ingroup fba fba
+RUN mkdir -p /app/data && chown fba:fba /app/data
 USER fba
 
 EXPOSE 8080
@@ -48,6 +49,7 @@ EXPOSE 8080
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8080", \
      "--workers", "2", \
+     "--preload", \
      "--timeout", "120", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \

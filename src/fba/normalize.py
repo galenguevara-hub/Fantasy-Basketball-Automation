@@ -47,6 +47,34 @@ def parse_stat_value(value: Any) -> Optional[float]:
     return None
 
 
+# Component stat keys for recomputing percentages with full precision.
+# Yahoo rounds FG%/FT% to 3 decimals; recomputing from makes/attempts breaks ties.
+_PCT_COMPONENTS: Dict[str, Tuple[str, str]] = {
+    "FG%": ("FGM", "FGA"),
+    "FT%": ("FTM", "FTA"),
+}
+
+
+def _recompute_pct(pct_key: str, stats: Dict[str, Any]) -> Optional[float]:
+    """Recompute a percentage stat from its component stats (e.g., FGM/FGA).
+
+    Returns full-precision float if components are available and denominator > 0,
+    otherwise None (caller should fall back to Yahoo's rounded value).
+    """
+    components = _PCT_COMPONENTS.get(pct_key)
+    if components is None:
+        return None
+
+    makes_key, attempts_key = components
+    makes = parse_stat_value(stats.get(makes_key))
+    attempts = parse_stat_value(stats.get(attempts_key))
+
+    if makes is not None and attempts is not None and attempts > 0:
+        return makes / attempts
+
+    return None
+
+
 def calculate_per_game_stats(
     team: Dict[str, Any],
     category_config: Optional[List[CategoryConfig]] = None,
@@ -116,10 +144,15 @@ def build_per_game_rows(
         # Add per-game counting stats
         row.update(pg_stats)
 
-        # Add percentage stats (as-is, not per-game)
+        # Add percentage stats — recompute from component stats when available
+        # for full precision (Yahoo rounds FG%/FT% to 3 decimals which hides ties)
         for c in configs:
             if c.is_percentage:
-                row[c.key] = parse_stat_value(stats.get(c.key))
+                recomputed = _recompute_pct(c.key, stats)
+                if recomputed is not None:
+                    row[c.key] = recomputed
+                else:
+                    row[c.key] = parse_stat_value(stats.get(c.key))
 
         rows.append(row)
 

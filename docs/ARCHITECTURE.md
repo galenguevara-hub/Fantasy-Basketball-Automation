@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Current as of March 11, 2026 (`main`).
+Current as of March 15, 2026 (`main`).
 
 ## Runtime Modes
 
@@ -71,8 +71,9 @@ Container details:
 - `PYTHONPATH=/app/src`
 - `FBA_UI_MODE=react`
 - non-root runtime user: `fba`
+- writable `/app/data` directory owned by `fba`
 - exposed port: `8080`
-- Gunicorn: `--workers 2 --timeout 120`
+- Gunicorn: `--workers 2 --preload --timeout 120`
 
 ## Docker Compose Topology
 
@@ -84,8 +85,8 @@ Container details:
 Compose wiring:
 
 - `REDIS_URL=redis://redis:6379/0`
-- `YAHOO_REDIRECT_URI=http://localhost:8080/auth/yahoo/callback`
 - `FBA_UI_MODE=react`
+- `YAHOO_REDIRECT_URI` is passed through from the host environment
 
 ## Fly.io Topology
 
@@ -143,6 +144,8 @@ Redis must be provided externally via `REDIS_URL`.
 ### `src/fba/normalize.py`
 
 - per-game normalization driven by `CategoryConfig` (counting vs percentage)
+- FG%/FT% precision is recomputed from component stats (`FGM/FGA`, `FTM/FTA`)
+  when available, with fallback to Yahoo-provided percentages
 - category re-ranking (`N = best`, `1 = worst`) respecting `higher_is_better`
 - `rank_total` and `points_delta` outputs
 
@@ -150,9 +153,19 @@ Redis must be provided externally via `REDIS_URL`.
 
 - nearest-team effort/risk gaps (`gap_up`, `gap_down`, z versions) respecting
   `higher_is_better` directionality
+- tie handling uses adjacent rank order (not strict-value skip), so tied teams
+  still map to an immediate team above/below for gap analysis
 - target score with 1st-place defensive branch
 - independent `is_target` and `is_defend` flags
+- `compute_gap_chart_data()` builds per-category chart payload data returned by
+  `/api/analysis` as `gap_chart`
 - `N_TARGETS = 3`, `N_DEFEND = 3`
+
+### `src/fba/timeseries/db.py`
+
+- opens SQLite connections with `timeout=10`, `check_same_thread=False`, and a
+  `busy_timeout` pragma for concurrent worker resilience
+- initializes schema with WAL mode and a safe `wal_checkpoint(PASSIVE)`
 
 ### `src/fba/analysis/cluster_leverage.py`
 
@@ -191,8 +204,8 @@ part of the supported runtime path.
 
 ## Verification Snapshot
 
-Latest recorded verification (March 11, 2026):
+Latest recorded verification (March 15, 2026):
 
-- `./venv/bin/pytest -q` → `192 passed`
+- `./venv/bin/pytest -q` → `212 passed`
 - `npm --prefix frontend run build` → passed
 - `flyctl deploy --remote-only` → deployed to `https://roto-fantasy-solver.fly.dev`

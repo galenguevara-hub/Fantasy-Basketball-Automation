@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-03-15
+
+### Analysis accuracy, runtime safety, and documentation sync
+
+- Layer 1 tie handling now uses adjacent rank order for `gap_up` / `gap_down`
+  (instead of strict-value skipping), improving category neighbor context when
+  teams tie in displayed values
+- Added `compute_gap_chart_data()` output usage in typed frontend contracts via
+  `AnalysisPayload.gap_chart` (`frontend/src/lib/types.ts`)
+- Per-game normalization now recomputes FG%/FT% from component stats
+  (`FGM/FGA`, `FTM/FTA`) when available for full precision, then falls back to
+  Yahoo-provided percentages
+- Hardened SQLite time-series startup:
+  - added `PRAGMA busy_timeout=10000` on connections
+  - kept WAL mode setup and switched startup recovery to safe
+    `PRAGMA wal_checkpoint(PASSIVE)` instead of deleting WAL/SHM files
+- Docker runtime updates:
+  - runtime image now ensures writable `/app/data` owned by non-root `fba` user
+  - Gunicorn now runs with `--preload`
+- Docker Compose now reads `YAHOO_REDIRECT_URI` from the host environment
+  (instead of hardcoding a callback URI in compose)
+- Added `data/timeseries.db`, `data/timeseries.db-shm`, and
+  `data/timeseries.db-wal` to `.gitignore`
+- Updated all primary docs to reflect the current code and deployment behavior:
+  - `README.md`
+  - `docs/QUICKSTART.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/IMPLEMENTATION_SUMMARY.md`
+  - `docs/DOCS.md`
+  - `frontend/README.md`
+
+### Verification snapshot
+
+- `./venv/bin/pytest -q` → `212 passed`
+- `npm --prefix frontend run build` → passed
+
 ## 2026-03-11
 
 ### Dynamic league categories + error handling + UX improvements

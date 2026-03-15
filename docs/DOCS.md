@@ -37,10 +37,13 @@
   truth for per-category metadata (key, display, stat_id, directionality,
   percentage flag); `build_category_config_from_raw()` parses Yahoo raw settings
 - `src/fba/normalize.py`: per-game normalization and re-ranking (directionality
-  driven by `CategoryConfig`)
-- `src/fba/analysis/category_targets.py`: layer-1 target/defend scoring
+  driven by `CategoryConfig`, with FG%/FT% precision recomputation from
+  makes/attempts when available
+- `src/fba/analysis/category_targets.py`: layer-1 target/defend scoring and
+  `gap_chart` payload generation for `/api/analysis`
 - `src/fba/analysis/cluster_leverage.py`: layer-2 cluster leverage scoring (v2
   active, v1 retained)
+- `src/fba/timeseries/db.py`: SQLite lifecycle/WAL setup for snapshot storage
 - `src/fba/analysis/games_played.py`: pace analysis
 - `src/fba/analysis/executive_summary.py`: cross-model synthesis for the
   executive summary dashboard
@@ -49,8 +52,8 @@
 
 ## Current Verification Snapshot
 
-Latest recorded (March 11, 2026):
+Latest recorded (March 15, 2026):
 
-- `./venv/bin/pytest -q` → `192 passed`
+- `./venv/bin/pytest -q` → `212 passed`
 - `npm --prefix frontend run build` → passed
 - Deployed to `https://roto-fantasy-solver.fly.dev`

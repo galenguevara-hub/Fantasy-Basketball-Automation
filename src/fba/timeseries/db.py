@@ -37,18 +37,23 @@ def get_default_db_path() -> Path:
 def get_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     """Open a SQLite connection.  Caller is responsible for closing it."""
     path = str(db_path or get_default_db_path())
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=10, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    # Keep reads/writes resilient under concurrent Gunicorn workers.
+    conn.execute("PRAGMA busy_timeout=10000")
     return conn
 
 
 def init_db(db_path: Path | str | None = None) -> None:
     """Create tables and indexes if they do not already exist."""
-    path = db_path or get_default_db_path()
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = get_db(path)
+    path = Path(db_path or get_default_db_path())
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    conn = get_db(str(path))
     try:
+        # Set WAL mode once at startup and checkpoint safely if a WAL exists.
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
         conn.executescript(_SCHEMA_SQL)
     finally:
         conn.close()

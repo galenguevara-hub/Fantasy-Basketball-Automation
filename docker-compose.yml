@@ -24,7 +24,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - YAHOO_CLIENT_ID=${YAHOO_CLIENT_ID}
       - YAHOO_CLIENT_SECRET=${YAHOO_CLIENT_SECRET}
-      - YAHOO_REDIRECT_URI=http://localhost:8080/auth/yahoo/callback
+      - YAHOO_REDIRECT_URI=${YAHOO_REDIRECT_URI}
       - FBA_UI_MODE=react
     depends_on:
       redis:

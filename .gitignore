@@ -12,6 +12,9 @@ data/standings.csv
 data/standings.json
 data/config.json
 data/browser_state.json
+data/timeseries.db
+data/timeseries.db-shm
+data/timeseries.db-wal
 out/
 server.log
 

@@ -48,6 +48,26 @@ export interface AnalysisCategory extends JsonRecord {
   target_score: number | null;
 }
 
+export interface GapChartRow {
+  category: string;
+  display: string;
+  key: string;
+  higher_is_better: boolean;
+  is_percentage: boolean;
+  my_value: number;
+  above_team: string | null;
+  above_value: number | null;
+  below_team: string | null;
+  below_value: number | null;
+  league_min: number;
+  league_max: number;
+  my_zscore: number | null;
+  above_zscore: number | null;
+  below_zscore: number | null;
+  z_min: number | null;
+  z_max: number | null;
+}
+
 export interface AnalysisPayload {
   has_data: boolean;
   league_id: string;
@@ -58,6 +78,7 @@ export interface AnalysisPayload {
   team_cluster: Record<string, JsonRecord>;
   team_pg_rank: Record<string, string>;
   league_summary: JsonRecord[];
+  gap_chart: GapChartRow[];
 }
 
 export interface CategoryMeta {

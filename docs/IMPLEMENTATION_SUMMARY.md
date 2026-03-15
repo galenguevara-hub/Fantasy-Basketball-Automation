@@ -1,6 +1,6 @@
 # Implementation Summary
 
-Status: current as of March 11, 2026.
+Status: current as of March 15, 2026.
 
 ## What Is Implemented
 
@@ -15,6 +15,8 @@ Status: current as of March 11, 2026.
 - Layer 2 cluster leverage analysis in `src/fba/analysis/cluster_leverage.py`
 - Games-played pace analysis in `src/fba/analysis/games_played.py`
 - Executive summary synthesis layer in `src/fba/analysis/executive_summary.py`
+- Analysis API gap chart payload (`gap_chart`) for Category Gap Chart rendering
+- SQLite-backed time-series snapshot persistence in `src/fba/timeseries/`
 - Multi-stage Docker build in `Dockerfile`
 - Local Docker + Redis stack in `docker-compose.yml`
 - Fly.io deployment config in `fly.toml`
@@ -78,7 +80,13 @@ Status: current as of March 11, 2026.
   - `TARGET` and `DEFEND` are independent (`is_target`, `is_defend`); categories
     can be both simultaneously
   - directionality respects `higher_is_better` from `CategoryConfig` (e.g. TO)
+  - tie handling uses adjacent rank neighbors (not strict-value skip) for
+    `gap_up`/`gap_down`
+  - `/api/analysis` includes `gap_chart` rows from `compute_gap_chart_data()`
   - `N_TARGETS = 3`, `N_DEFEND = 3`
+- Normalization (`normalize.py`):
+  - FG%/FT% are recomputed from raw makes/attempts (`FGM/FGA`, `FTM/FTA`) when
+    available, then fallback to Yahoo percentage values
 - Layer 2 (`cluster_leverage.py`):
   - v1 count-based scores are retained (`cluster_*_v1`)
   - v2 distance-weighted scores are active (`cluster_*_v2` -> `cluster_up_score` / `cluster_down_risk`)
@@ -91,10 +99,13 @@ Status: current as of March 11, 2026.
 
 - `Dockerfile`
   - builds React in `node:20-alpine`
-  - runs app in `python:3.11-slim` with Gunicorn (`2` workers, `120s` timeout)
+  - runs app in `python:3.11-slim` with Gunicorn (`2` workers, `--preload`,
+    `120s` timeout)
+  - creates writable `/app/data` owned by the non-root `fba` user
 - `docker-compose.yml`
   - starts `app` + `redis`
   - wires `REDIS_URL=redis://redis:6379/0`
+  - passes through `YAHOO_REDIRECT_URI` from host environment
 - `fly.toml`
   - app: `roto-fantasy-solver`
   - region: `ord`
@@ -107,14 +118,15 @@ Status: current as of March 11, 2026.
 - `data/config.json`: legacy-template config fallback
 - `data/standings.json`: standings disk fallback (written after every refresh
   when Redis is unavailable; read back on all API calls as last-resort fallback)
+- `data/timeseries.db`: SQLite snapshot store for trends/time-series endpoints
 
 `data/oauth2.json` remains only as a legacy fallback inside
 `src/fba/yahoo_api.py`; the supported web OAuth flow does not require it.
 
 ## Verification Snapshot
 
-Latest recorded verification (March 11, 2026):
+Latest recorded verification (March 15, 2026):
 
-- `./venv/bin/pytest -q` → `192 passed`
+- `./venv/bin/pytest -q` → `212 passed`
 - `npm --prefix frontend run build` → passed
 - Deployed to `https://roto-fantasy-solver.fly.dev`

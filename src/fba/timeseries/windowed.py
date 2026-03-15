@@ -199,7 +199,11 @@ def compute_chart_data(
                         made_key, att_key = components
                         made = _safe_float(stats.get(made_key, 0))
                         att = _safe_float(stats.get(att_key, 0))
-                        team_stats[cfg.key] = made / att if att > 0 else None
+                        if att > 0:
+                            team_stats[cfg.key] = made / att
+                        else:
+                            # Fallback: older snapshots may lack component stats
+                            team_stats[cfg.key] = _safe_float(stats.get(cfg.key)) or None
                     else:
                         team_stats[cfg.key] = _safe_float(stats.get(cfg.key)) or None
                 else:

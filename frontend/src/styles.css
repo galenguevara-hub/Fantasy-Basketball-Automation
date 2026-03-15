@@ -1179,3 +1179,337 @@ tbody tr.row-selected:hover td:first-child {
   margin: 8px 0;
   font-size: 13px;
 }
+
+.trends-chart-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.trends-chart-controls span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trends-chart-wrap {
+  width: 100%;
+  height: 400px;
+}
+
+@media (max-width: 640px) {
+  .trends-chart-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .trends-chart-controls span {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .trends-chart-controls select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .trends-chart-wrap {
+    height: 280px;
+  }
+
+  .trends-team-filter {
+    gap: 4px;
+  }
+
+  .trends-team-filter label {
+    font-size: 10px !important;
+    margin-right: 4px !important;
+  }
+
+  .trend-delta {
+    display: none;
+  }
+}
+
+/* ── Category Gap Chart ──────────────────────────────────────── */
+
+.gap-toggle-row {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.gap-toggle {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.gap-toggle:hover {
+  background: #f1f5f9;
+  border: none;
+}
+
+.gap-toggle-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.gap-toggle-active:hover {
+  background: var(--accent-strong);
+}
+
+.gap-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 20px;
+}
+
+.gap-row {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.gap-row:last-child {
+  border-bottom: none;
+}
+
+.gap-row-label {
+  flex-shrink: 0;
+  width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.gap-row-chart {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Label rows above and below the bar */
+.gap-label-row {
+  position: relative;
+  height: 16px;
+}
+
+.gap-team-label {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.gap-team-name {
+  color: var(--muted);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gap-team-val {
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.gap-team-label-above .gap-team-val {
+  color: #dc2626;
+}
+
+.gap-team-label-below .gap-team-val {
+  color: #16a34a;
+}
+
+.gap-my-label {
+  z-index: 2;
+}
+
+.gap-my-label .gap-team-val {
+  color: var(--accent-strong);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+/* The bar track */
+.gap-bar-track {
+  position: relative;
+  height: 12px;
+  background: #eef0f4;
+  border-radius: 6px;
+  overflow: visible;
+}
+
+.gap-seg {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 6px;
+}
+
+.gap-seg-green {
+  background: rgba(22, 163, 74, 0.22);
+  border: 1px solid rgba(22, 163, 74, 0.45);
+}
+
+.gap-seg-red {
+  background: rgba(220, 38, 38, 0.16);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+}
+
+/* Tick marks for opponent positions */
+.gap-tick {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: calc(100% + 4px);
+  transform: translateX(-50%);
+  border-radius: 1px;
+  z-index: 1;
+}
+
+.gap-tick-green {
+  background: #16a34a;
+  opacity: 0.6;
+}
+
+.gap-tick-red {
+  background: #dc2626;
+  opacity: 0.6;
+}
+
+/* My position dot */
+.gap-my-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  z-index: 3;
+}
+
+.gap-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.gap-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.gap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gap-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gap-legend-dot-my {
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.gap-legend-swatch {
+  width: 16px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.gap-legend-swatch-green {
+  background: rgba(22, 163, 74, 0.22);
+  border: 1px solid rgba(22, 163, 74, 0.45);
+}
+
+.gap-legend-swatch-red {
+  background: rgba(220, 38, 38, 0.16);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+}
+
+.gap-legend-tick {
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.gap-legend-tick-red {
+  background: #dc2626;
+  opacity: 0.6;
+}
+
+.gap-legend-tick-green {
+  background: #16a34a;
+  opacity: 0.6;
+}
+
+.gap-legend-green {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.gap-legend-red {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .gap-chart-wrap {
+    padding: 10px 12px;
+  }
+
+  .gap-row {
+    gap: 8px;
+  }
+
+  .gap-row-label {
+    width: 42px;
+  }
+
+  .gap-team-name {
+    max-width: 60px;
+    font-size: 9px;
+  }
+}

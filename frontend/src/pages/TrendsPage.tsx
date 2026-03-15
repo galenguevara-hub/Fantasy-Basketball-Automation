@@ -260,7 +260,7 @@ export function TrendsPage() {
           {data.chart_data && data.chart_data.length > 0 && (
             <section style={{ marginTop: 24 }}>
               <h2>Time Series</h2>
-              <div className="control-row" style={{ marginBottom: 16, gap: 16 }}>
+              <div className="trends-chart-controls">
                 <span>
                   <label htmlFor="trends-cat-select">Category</label>
                   <select
@@ -330,7 +330,7 @@ export function TrendsPage() {
                 ))}
               </div>
 
-              <div style={{ width: "100%", height: 400 }}>
+              <div className="trends-chart-wrap">
                 <ResponsiveContainer>
                   <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />

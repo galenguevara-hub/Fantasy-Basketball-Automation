@@ -67,6 +67,9 @@ export function TrendsPage() {
   // Team filter for chart
   const [hiddenTeams, setHiddenTeams] = useState<Set<string>>(new Set());
 
+  // Time range filter for chart
+  const [timeRange, setTimeRange] = useState<string>("all");
+
   const categories = data?.categories ?? [];
   const activeCatKey = selectedCatKey || (categories.length > 0 ? categories[0].key : "");
   const activeCat = categories.find((c) => c.key === activeCatKey);
@@ -86,7 +89,18 @@ export function TrendsPage() {
   const teamNames = data?.team_names ?? [];
   const chartData = useMemo(() => {
     if (!data?.chart_data || !activeCatKey) return [];
-    return data.chart_data.map((point: TrendsChartPoint) => {
+
+    // Filter by time range
+    let points = data.chart_data;
+    if (timeRange !== "all" && points.length > 0) {
+      const days = parseInt(timeRange, 10);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      points = points.filter((p: TrendsChartPoint) => p.date >= cutoffStr);
+    }
+
+    return points.map((point: TrendsChartPoint) => {
       const row: Record<string, string | number | null> = { date: point.date };
       for (const team of teamNames) {
         if (!hiddenTeams.has(team)) {
@@ -96,7 +110,7 @@ export function TrendsPage() {
       }
       return row;
     });
-  }, [data?.chart_data, activeCatKey, teamNames, hiddenTeams]);
+  }, [data?.chart_data, activeCatKey, teamNames, hiddenTeams, timeRange]);
 
   function toggleTeam(name: string) {
     setHiddenTeams((prev) => {
@@ -246,17 +260,33 @@ export function TrendsPage() {
           {data.chart_data && data.chart_data.length > 0 && (
             <section style={{ marginTop: 24 }}>
               <h2>Time Series</h2>
-              <div className="control-row" style={{ marginBottom: 16 }}>
-                <label htmlFor="trends-cat-select">Category</label>
-                <select
-                  id="trends-cat-select"
-                  value={activeCatKey}
-                  onChange={(e) => setSelectedCatKey(e.target.value)}
-                >
-                  {categories.map((cat) => (
-                    <option key={cat.key} value={cat.key}>{cat.display}</option>
-                  ))}
-                </select>
+              <div className="control-row" style={{ marginBottom: 16, gap: 16 }}>
+                <span>
+                  <label htmlFor="trends-cat-select">Category</label>
+                  <select
+                    id="trends-cat-select"
+                    value={activeCatKey}
+                    onChange={(e) => setSelectedCatKey(e.target.value)}
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat.key} value={cat.key}>{cat.display}</option>
+                    ))}
+                  </select>
+                </span>
+                <span>
+                  <label htmlFor="trends-range-select">Time Range</label>
+                  <select
+                    id="trends-range-select"
+                    value={timeRange}
+                    onChange={(e) => setTimeRange(e.target.value)}
+                  >
+                    <option value="all">All Time</option>
+                    <option value="7">Last 7 Days</option>
+                    <option value="14">Last 14 Days</option>
+                    <option value="30">Last 30 Days</option>
+                    <option value="60">Last 60 Days</option>
+                  </select>
+                </span>
               </div>
 
               <div className="trends-team-filter" style={{ marginBottom: 12 }}>

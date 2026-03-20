@@ -25,7 +25,7 @@ def make_team(name: str, gp: int, rank: int = 1) -> dict:
     }
 
 
-SEASON_START = date(2025, 10, 14)
+SEASON_START = date(2025, 10, 21)
 SEASON_END = date(2026, 3, 22)
 
 
@@ -68,7 +68,7 @@ class TestMetricCalculations:
         """avg_gp_per_day_so_far = gp / elapsed_days."""
         teams = [make_team("Team A", 30)]
         # elapsed = 30 days (day 1 through day 30 inclusive)
-        today = date(2025, 10, 14) + __import__("datetime").timedelta(days=29)
+        today = date(2025, 10, 21) + __import__("datetime").timedelta(days=29)
         rows, valid = compute_games_played_metrics(teams, SEASON_START, SEASON_END, today)
         assert valid is True
         assert rows[0]["elapsed_days"] == 30
@@ -77,7 +77,7 @@ class TestMetricCalculations:
     def test_avg_needed(self):
         """avg_gp_per_day_needed = (total_games - gp) / remaining_days."""
         teams = [make_team("Team A", 30)]
-        today = date(2025, 10, 14) + __import__("datetime").timedelta(days=29)
+        today = date(2025, 10, 21) + __import__("datetime").timedelta(days=29)
         rows, valid = compute_games_played_metrics(teams, SEASON_START, SEASON_END, today)
         expected_remaining = (SEASON_END - today).days + 1
         assert abs(rows[0]["avg_gp_per_day_needed"] - (816 - 30) / expected_remaining) < 1e-9
@@ -114,10 +114,10 @@ class TestMetricCalculations:
         A team that has played many games early in the season is ahead.
         """
         teams = [make_team("Team A", 700)]
-        today = date(2025, 10, 20)  # only 7 days elapsed
+        today = date(2025, 10, 27)  # only 7 days elapsed
         rows, valid = compute_games_played_metrics(teams, SEASON_START, SEASON_END, today)
         assert valid is True
-        # avg_so_far = 700/7 = 100, avg_needed = (816-700)/154 ≈ 0.75 → delta < 0
+        # avg_so_far = 700/7 = 100, avg_needed = (816-700)/147 ≈ 0.79 → delta < 0
         assert rows[0]["net_rate_delta"] < 0
 
 
@@ -235,7 +235,7 @@ class TestProjectedTotals:
     def test_basic_projection(self):
         """Projected totals = (stat/gp) * projected_gp."""
         teams = [make_full_team("Team A", 100, {"PTS": 2000, "REB": 500, "AST": 300, "ST": 80, "BLK": 50, "3PTM": 150})]
-        # 49 elapsed days (Oct 14 - Dec 1 inclusive), 160 total season days
+        # 42 elapsed days (Oct 21 - Dec 1 inclusive), 153 total season days
         today = date(2025, 12, 1)
         rows = compute_projected_totals(teams, SEASON_START, SEASON_END, today)
         assert len(rows) == 1
@@ -243,7 +243,7 @@ class TestProjectedTotals:
         assert r["team_name"] == "Team A"
         assert r["projected_gp"] is not None
         assert r["projected_PTS"] is not None
-        # gp_per_day = 100/49, projected_gp = min(100/49 * 160, 816)
+        # gp_per_day = 100/42, projected_gp = min(100/42 * 153, 816)
         elapsed = (today - SEASON_START).days + 1
         total_days = (SEASON_END - SEASON_START).days + 1
         expected_gp = min(100 / elapsed * total_days, 816)
@@ -256,10 +256,10 @@ class TestProjectedTotals:
         """If pace exceeds total_games, projected_gp should be capped."""
         # Team with very high GP early in season
         teams = [make_full_team("Fast Team", 500, {"PTS": 10000})]
-        today = date(2025, 10, 20)  # 7 elapsed days
+        today = date(2025, 10, 27)  # 7 elapsed days
         rows = compute_projected_totals(teams, SEASON_START, SEASON_END, today, total_games=816)
         r = rows[0]
-        # gp_per_day = 500/7 ≈ 71.4, projected = 71.4 * 160 ≈ 11428 > 816
+        # gp_per_day = 500/7 ≈ 71.4, projected = 71.4 * 153 ≈ 10928 > 816
         assert r["projected_gp"] == 816
 
     def test_zero_gp_produces_none(self):

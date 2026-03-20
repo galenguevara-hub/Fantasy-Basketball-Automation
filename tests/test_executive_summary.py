@@ -3,7 +3,7 @@ from datetime import date
 from fba.analysis.executive_summary import build_executive_summary
 
 
-SEASON_START = date(2025, 10, 14)
+SEASON_START = date(2025, 10, 21)
 SEASON_END = date(2026, 3, 22)
 TODAY = date(2026, 2, 1)
 

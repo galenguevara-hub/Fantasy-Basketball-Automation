@@ -225,7 +225,7 @@ def test_legacy_payloads_match_api_payloads_for_all_calculated_fields(
     api_analysis = test_client.get("/api/analysis?team=Charlie").get_json()
     assert legacy_analysis == api_analysis
 
-    query = "?start=2025-10-14&end=2026-03-22&total_games=816"
+    query = "?start=2025-10-21&end=2026-03-22&total_games=816"
     legacy_games = test_client.get(f"/games-played{query}").get_json()["payload"]
     api_games = test_client.get(f"/api/games-played{query}").get_json()
     assert legacy_games == api_games
@@ -372,14 +372,14 @@ def test_games_played_fields_follow_expected_calculations(regression_client):
     test_client, standings_file = regression_client
     _write_sample_standings(standings_file)
 
-    payload = test_client.get("/api/games-played?start=2025-10-14&end=2026-03-22&total_games=816").get_json()
+    payload = test_client.get("/api/games-played?start=2025-10-21&end=2026-03-22&total_games=816").get_json()
     overview = test_client.get("/api/overview").get_json()
     rank_total_by_team = {row["team_name"]: row["rank_total"] for row in overview["ranking_rows"]}
 
     assert payload["date_valid"] is True
     elapsed = payload["elapsed_days"]
     remaining = payload["remaining_days"]
-    assert elapsed == 137
+    assert elapsed == 130
     assert remaining == 24
 
     for row in payload["rows"]:

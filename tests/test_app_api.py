@@ -197,7 +197,7 @@ def test_api_games_played_uses_defaults_for_bad_dates(client):
 
     payload = response.get_json()
     assert payload["has_data"] is True
-    assert payload["start_str"] == "2025-10-14"
+    assert payload["start_str"] == "2025-10-21"
     assert payload["end_str"] == "2026-03-22"
     assert payload["total_games"] == 816
     assert "Invalid start date" in payload["date_error"]

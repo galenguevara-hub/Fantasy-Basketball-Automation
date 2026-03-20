@@ -691,7 +691,7 @@ def analysis():
     return render_template("analysis.html", **payload)
 
 
-_SEASON_START = date(2025, 10, 14)
+_SEASON_START = date(2025, 10, 21)
 _SEASON_END = date(2026, 3, 22)
 _DEFAULT_TOTAL_GAMES = 816
 
